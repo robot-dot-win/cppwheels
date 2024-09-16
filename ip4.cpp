@@ -16,6 +16,7 @@
 //  along with this program. If not, see <https://www.gnu.org/licenses/>.
 //------------------------------------------------------------------------
 
+#include <bit>      // Since C++20
 #include <sstream>
 #include "ip4.hpp"
 
@@ -94,10 +95,6 @@ ip4net::ip4net(const string& ips)
     }
 
     // bits of mask must be continuous '1' from left to right:
-    bool zero_found = false;
-    tmask=0;
-    for( uint32_t u=m.aa; u; u<<=1,tmask++ ) {
-        if( zero_found ) throw e_bad_format;
-        zero_found = !(u&0x80000000);
-    }
+    tmask = countl_one(m.aa);
+    if( tmask != popcount(m.aa) ) throw e_bad_format;
 }
