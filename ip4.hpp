@@ -45,7 +45,7 @@ public:
     ip4(const std::string& _sa);
     ip4(const char* _pa): aa(_pa? ip4(std::string(_pa)).aa : throw std::invalid_argument("NULL IPv4 string.")) {}
 
-    ip4(const ip4& other): aa(other.aa) {}
+    //ip4(const ip4& other): aa(other.aa) {} // the default copy constructor
 
     //ip4& operator=(const ip4& other)       { aa=other.aa;    return *this; }    // copy constructor
     //ip4& operator=(uint32_t _aa)           { aa=_aa;         return *this; }    // copy-initialization of non-explicit constructor
@@ -54,15 +54,15 @@ public:
 
     uint8_t& ba(int n) { return __IP4_BA(n); }
 
-    std::string ia() { return std::to_string(aa); }
-    std::string sa() { return std::to_string(__IP4_BA(0))+"."+std::to_string(__IP4_BA(1))+"."+std::to_string(__IP4_BA(2))+"."+std::to_string(__IP4_BA(3)); }
+    std::string ia() const { return std::to_string(aa); }
+    std::string sa() const { return std::to_string(__IP4_BA(0))+"."+std::to_string(__IP4_BA(1))+"."+std::to_string(__IP4_BA(2))+"."+std::to_string(__IP4_BA(3)); }
 
-    bool operator==(const ip4& other) { return aa==other.aa; }
-    bool operator!=(const ip4& other) { return aa!=other.aa; }
-    bool operator>=(const ip4& other) { return aa>=other.aa; }
-    bool operator<=(const ip4& other) { return aa<=other.aa; }
-    bool operator >(const ip4& other) { return aa >other.aa; }
-    bool operator <(const ip4& other) { return aa <other.aa; }
+    bool operator==(const ip4& other) const { return aa==other.aa; }
+    bool operator!=(const ip4& other) const { return aa!=other.aa; }
+    bool operator>=(const ip4& other) const { return aa>=other.aa; }
+    bool operator<=(const ip4& other) const { return aa<=other.aa; }
+    bool operator >(const ip4& other) const { return aa >other.aa; }
+    bool operator <(const ip4& other) const { return aa <other.aa; }
 
     // Validate and assign ip4 value, ingoring exceptions
     bool vali(const std::string& _sa) {
@@ -89,21 +89,20 @@ public:
     ip4net(const std::string& ips);
     ip4net(const char* ipc) { ipc? *this=ip4net(std::string(ipc)) : throw std::invalid_argument("NULL IPv4 net string."); }
 
-    ip4net(const ip4net& other): taddr(other.taddr),tmask(other.tmask) {}
+    //ip4net(const ip4net& other): taddr(other.taddr),tmask(other.tmask) {}   // the default copy constructor
 
-    uint8_t nmask() { return tmask; }
-    ip4 addr()    { return taddr; }
-    ip4 imask()   { return ip4(UINT32_MAX<<(32-tmask)); }
-    ip4 subnet()  { return ip4(taddr.aa & (UINT32_MAX<<(32-tmask))); }
-    ip4 brdcast() { return ip4(taddr.aa | (UINT32_MAX>>tmask)); }
+    uint8_t nmask() const { return tmask; }
+    ip4 addr()    const { return taddr; }
+    ip4 imask()   const { return ip4(UINT32_MAX<<(32-tmask)); }
+    ip4 subnet()  const { return ip4(taddr.aa & (UINT32_MAX<<(32-tmask))); }
+    ip4 brdcast() const { return ip4(taddr.aa | (UINT32_MAX>>tmask)); }
 
     // Validate and assign ip4net value, ingoring exceptions
     bool vali(ip4 ip, uint8_t msk) {
         try { *this = ip4net(ip,msk); } catch(...) { return false; }
         return true;
     }
-    bool vali(const std::string& ips)
-    {
+    bool vali(const std::string& ips) {
         try { *this = ip4net(ips); } catch(...) { return false; }
         return true;
     }
