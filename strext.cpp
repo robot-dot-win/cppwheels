@@ -18,6 +18,6 @@
 
 #include "strext.hpp"
 
-const std::string  EMPTY_STR;
+const std::string  EMPTY_STR{};
 
 //----------------------------------------------------------------------------------------

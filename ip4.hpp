@@ -45,13 +45,6 @@ public:
     ip4(const std::string& _sa);
     ip4(const char* _pa): aa(_pa? ip4(std::string(_pa)).aa : throw std::invalid_argument("NULL IPv4 string.")) {}
 
-    //ip4(const ip4& other): aa(other.aa) {} // the default copy constructor
-
-    //ip4& operator=(const ip4& other)       { aa=other.aa;    return *this; }    // copy constructor
-    //ip4& operator=(uint32_t _aa)           { aa=_aa;         return *this; }    // copy-initialization of non-explicit constructor
-    //ip4& operator=(const char* _pa)        { aa=ip4(_pa).aa; return *this; }    // copy-initialization of non-explicit constructor
-    //ip4& operator=(const std::string& _sa) { aa=ip4(_sa).aa; return *this; }    // copy-initialization of non-explicit constructor
-
     uint8_t& ba(int n) { return __IP4_BA(n); }
 
     std::string ia() const { return std::to_string(aa); }
@@ -88,8 +81,6 @@ public:
     //      Whitespace characters between "/" and "mask" will be ignored, e.g. "192.168. 0.  8/      26"
     ip4net(const std::string& ips);
     ip4net(const char* ipc) { ipc? *this=ip4net(std::string(ipc)) : throw std::invalid_argument("NULL IPv4 net string."); }
-
-    //ip4net(const ip4net& other): taddr(other.taddr),tmask(other.tmask) {}   // the default copy constructor
 
     uint8_t nmask() const { return tmask; }
     ip4 addr()    const { return taddr; }
