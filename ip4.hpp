@@ -84,9 +84,9 @@ public:
 
     uint8_t nmask() const { return tmask; }
     ip4 addr()    const { return taddr; }
-    ip4 imask()   const { return ip4(UINT32_MAX<<(32-tmask)); }
-    ip4 subnet()  const { return ip4(taddr.aa & (UINT32_MAX<<(32-tmask))); }
-    ip4 brdcast() const { return ip4(taddr.aa | (UINT32_MAX>>tmask)); }
+    ip4 imask()   const { return ip4((uint64_t)UINT32_MAX<<(32-tmask)); }  // shift count CANNOT >= width!
+    ip4 subnet()  const { return ip4(taddr.aa & ((uint64_t)UINT32_MAX<<(32-tmask))); }
+    ip4 brdcast() const { return ip4(taddr.aa | ((uint64_t)UINT32_MAX>>tmask)); }
 
     // Validate and assign ip4net value, ingoring exceptions
     bool vali(ip4 ip, uint8_t msk) {
