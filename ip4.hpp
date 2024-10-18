@@ -62,6 +62,15 @@ public:
     ip4 operator ++(int) { return aa++; }
     ip4 operator --(int) { return aa--; }
 
+    ip4 operator +=(int n) { aa+=n; return *this; }
+    ip4 operator -=(int n) { aa-=n; return *this; }
+
+    ip4 operator >>(uint8_t nbit) const { return (uint64_t)aa>>nbit; }
+    ip4 operator <<(uint8_t nbit) const { return (uint64_t)aa<<nbit; }
+
+    ip4 operator >>=(uint8_t nbit) { aa=(uint64_t)aa>>nbit; return *this; }
+    ip4 operator <<=(uint8_t nbit) { aa=(uint64_t)aa<<nbit; return *this; }
+
     // Validate and assign ip4 value, ingoring exceptions
     bool vali(const std::string& _sa) {
         try { *this = _sa; } catch(...) { return false; }
