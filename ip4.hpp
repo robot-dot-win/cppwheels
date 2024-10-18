@@ -57,6 +57,11 @@ public:
     bool operator >(const ip4& other) const { return aa >other.aa; }
     bool operator <(const ip4& other) const { return aa <other.aa; }
 
+    ip4 operator ++()    { ++aa; return *this; }
+    ip4 operator --()    { --aa; return *this; }
+    ip4 operator ++(int) { return aa++; }
+    ip4 operator --(int) { return aa--; }
+
     // Validate and assign ip4 value, ingoring exceptions
     bool vali(const std::string& _sa) {
         try { *this = _sa; } catch(...) { return false; }
