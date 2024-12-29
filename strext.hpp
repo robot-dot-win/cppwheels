@@ -25,6 +25,7 @@
 #include <vector>
 
 extern const std::string EMPTY_STR;
+extern const std::string SPACE_CHARS;
 
 #define sqlquoted(s) (std::quoted(s,'\'','\''))
 
@@ -40,11 +41,13 @@ inline std::string&      trimr (      std::string& src);
 
 inline std::string       ltrims (const std::string& src);
 inline std::string_view  ltrimsv(const std::string& src);
-inline std::string&      ltrimr (      std::string& src);
+//inline std::string&      ltrimr (      std::string& src);
+#define ltrimr(src) (src.erase(0, src.find_first_not_of(SPACE_CHARS)))
 
 inline std::string       rtrims (const std::string& src);
 inline std::string_view  rtrimsv(const std::string& src);
-inline std::string&      rtrimr (      std::string& src);
+//inline std::string&      rtrimr (      std::string& src);
+#define rtrimr(src) (src.erase(src.find_last_not_of(SPACE_CHARS) + 1))
 
 inline std::string  lcase (const std::string& src);
 inline std::string  ucase (const std::string& src);
@@ -150,19 +153,8 @@ std::string_view  trimsv(const std::string& src)
 
 std::string& trimr(std::string& src)
 {
-    if( src.empty() || (!std::isspace(*src.begin()) && !std::isspace(*src.rbegin())) ) return src;
-
-    // Erase tail spaces firstly:
-    auto r = src.rbegin();
-    while( r!=src.rend() && std::isspace(*r) ) r++;
-    if( r==src.rend() ) { src.clear(); return src; }
-    if( r!=src.rbegin() ) src.erase(src.size()-(r-src.rbegin()));
-
-    // Erase leading spaces then:
-    size_t i{};
-    size_t j = src.size()-1;
-    while( i<j && std::isspace(src[i]) ) i++;
-    if( i>0 ) src.erase(0, i);
+    src.erase(0, src.find_first_not_of(SPACE_CHARS));
+    src.erase(src.find_last_not_of(SPACE_CHARS) + 1);
 
     return src;
 }
@@ -191,19 +183,6 @@ std::string_view ltrimsv(const std::string& src)
     return i>j? std::string_view() : std::string_view(src.data()+i, src.size()-i);
 }
 
-std::string& ltrimr(std::string& src)
-{
-    if( src.empty() || !std::isspace(*src.begin()) ) return src;
-
-    size_t i{1};
-    size_t j = src.size()-1;
-
-    while( i<=j && std::isspace(src[i]) ) i++;
-
-    if( i>j ) src.clear(); else src.erase(0,i);
-    return src;
-}
-
 std::string rtrims (const std::string& src)
 {
     if( src.empty() || !std::isspace(*src.rbegin()) ) return src;
@@ -220,16 +199,6 @@ std::string_view  rtrimsv(const std::string& src)
     auto r = src.rbegin(); r++;
     while( r!=src.rend() && std::isspace(*r) ) r++;
     return r==src.rend()? std::string_view() : std::string_view(src.data(), src.size()-(r-src.rbegin()));
-}
-
-std::string& rtrimr (std::string& src)
-{
-    if( src.empty() || !std::isspace(*src.rbegin()) ) return src;
-
-    auto r = src.rbegin(); r++;
-    while( r!=src.rend() && std::isspace(*r) ) r++;
-    if( r==src.rend() ) src.clear(); else src.erase(src.size()-(r-src.rbegin()));
-    return src;
 }
 
 std::string  lcase (const std::string& src)
