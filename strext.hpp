@@ -28,7 +28,7 @@ extern const std::string EMPTY_STR;
 extern const std::string SPACE_CHARS;
 
 #define sqlquoted(s) (std::quoted(s,'\'','\''))
-
+#define nposs(pos) ((pos)==std::string::npos)
 #define lefts(s,n) ((s).substr(0,n))
 #define leftsv(s,n) (std::string_view((s).data(),n))
 
@@ -82,7 +82,7 @@ public:
         do {
             idx.push_back(nfrom = nfind = (*ps_).find_first_of(d_, nfrom));
             nfrom++;
-        } while(nfind != std::string::npos);
+        } while(!nposs(nfind));
         *idx.rbegin() = (*ps_).size();
         return *this;
     }
@@ -101,7 +101,7 @@ std::vector<std::string>& splits(std::vector<std::string>& dst, const std::strin
 	size_t nfrom, nfind;
 	dst.clear();
 	if( !src.empty() ) {
-        for( nfrom=0; (nfind = src.find_first_of(delimiters, nfrom)) != std::string::npos; nfrom=nfind+1 )
+        for( nfrom=0; !nposs(nfind = src.find_first_of(delimiters, nfrom)); nfrom=nfind+1 )
             dst.emplace_back(src.substr(nfrom, nfind-nfrom));
         dst.emplace_back(src.substr(nfrom, src.size()-nfrom));
     }
@@ -115,7 +115,7 @@ std::vector<std::string_view>& splitsv(std::vector<std::string_view>& dst, const
 	size_t nfrom, nfind;
 	dst.clear();
 	if( !src.empty() ) {
-        for( nfrom=0; (nfind = src.find_first_of(delimiters, nfrom)) != std::string::npos; nfrom=nfind+1 )
+        for( nfrom=0; !nposs(nfind = src.find_first_of(delimiters, nfrom)); nfrom=nfind+1 )
             dst.emplace_back(src.data()+nfrom, nfind-nfrom);
         dst.emplace_back(src.data()+nfrom, src.size()-nfrom);
     }
@@ -226,7 +226,7 @@ std::string replall(const std::string& src, const std::string& sfind, const std:
     if( src.empty() || sfind.empty() ) return src;
 
     size_t pos = src.find(sfind);
-    if (pos == std::string::npos) return src;
+    if (nposs(pos)) return src;
 
     size_t nfrom=0;
     std::string res;
@@ -234,7 +234,7 @@ std::string replall(const std::string& src, const std::string& sfind, const std:
         res += src.substr(nfrom, pos-nfrom)+swith;
         nfrom = pos+sfind.length();
         pos = src.find(sfind, nfrom);
-    } while( pos != std::string::npos );
+    } while( !nposs(pos) );
     if( nfrom < src.size() ) res += src.substr(nfrom);
     return res;
 }
@@ -247,7 +247,7 @@ std::string& replall(std::string& res, const std::string& src, const std::string
     }
 
     size_t pos = src.find(sfind);
-    if (pos == std::string::npos) {
+    if (nposs(pos)) {
         res = src;
         return res;
     }
@@ -258,7 +258,7 @@ std::string& replall(std::string& res, const std::string& src, const std::string
         res += src.substr(nfrom, pos-nfrom)+swith;
         nfrom = pos+sfind.length();
         pos = src.find(sfind, nfrom);
-    } while( pos != std::string::npos );
+    } while( !nposs(pos) );
     if( nfrom < src.size() ) res += src.substr(nfrom);
     return res;
 }

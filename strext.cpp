@@ -19,6 +19,6 @@
 #include "strext.hpp"
 
 const std::string EMPTY_STR{};
-const std::string SPACE_CHARS{" \t\n\r\f\v"s};
+const std::string SPACE_CHARS{" \t\n\r\f\v"};
 
 //----------------------------------------------------------------------------------------
