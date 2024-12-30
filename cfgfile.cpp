@@ -76,17 +76,17 @@ bool cfgfile::reload()
             return false;
         }
 
+        // Now it's time to remove line trailing spaces:
+        line.erase(line.find_last_not_of(space_chars) + 1);
+
         size_t sep_pos = line.find(separator);
         if (sep_pos == string::npos) {
             errmsg = "Invalid option format: "s + line;
             return false;
         }
 
-        // Now it's time to remove line trailing spaces:
-        line.erase(line.find_last_not_of(space_chars) + 1);
-
-        auto key = line.substr(0, sep_pos);
-        auto value = line.substr(sep_pos + 1);
+        string key = line.substr(0, sep_pos);
+        string value = line.substr(sep_pos + 1);
 
         key.erase(key.find_last_not_of(space_chars) + 1);       // leading spaces have been removed with line
         value.erase(0, value.find_first_not_of(space_chars));   // trailing spaces have been removed with line
