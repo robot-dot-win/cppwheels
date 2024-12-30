@@ -29,7 +29,7 @@ protected:
     const bool readonly;
     const char separator;
 public:
-    std::string errmsg{};
+    std::string errmsg;
     std::map<std::string, std::map<std::string, std::string>> cfg;
 
     // After initializing an instance, check errmsg to judge if error occurs.
