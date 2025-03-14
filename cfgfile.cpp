@@ -31,7 +31,11 @@ bool cfgfile::reload()
     cfg.clear();
     errmsg.clear();
 
-    if (srcfile.empty()) return true;
+    if (srcfile.empty()) {
+        if (readonly) return true;
+        errmsg = "No file name. Changes will not be saved"s;
+        return false;
+    }
 
     if( !filesystem::exists(srcfile) ) {
         if (readonly) {
@@ -111,7 +115,7 @@ bool cfgfile::save()
     }
 
     if (readonly) {
-        errmsg = "File is read-only: "s + srcfile;
+        errmsg = "Read-only is set: "s + srcfile;
         return false;
     }
 

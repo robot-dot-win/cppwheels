@@ -37,6 +37,8 @@ public:
         : srcfile(sfile), readonly(rdonly), separator(sep)
         { reload(); }
 
+    ~cfgfile() { if(!readonly) save(); }
+
     bool reload();
     bool save();
 };
