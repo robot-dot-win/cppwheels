@@ -23,6 +23,8 @@
 #include <string_view>
 #include <algorithm>
 #include <vector>
+#include <type_traits>
+#include <stdexcept>     // not needed explicitly since c++20
 
 extern const std::string EMPTY_STR;
 extern const std::string SPACE_CHARS;
@@ -56,8 +58,9 @@ inline std::string& lcaser(std::string& src) { std::transform(src.begin(), src.e
 inline std::string& ucaser(std::string& src) { std::transform(src.begin(), src.end(), src.begin(), ::toupper); return src; }
 
 template <class T> class  spliti;
-template <class T> inline std::vector<std::string>&      splits (std::vector<std::string>&      dst, const std::string& src, T delimiters);
-template <class T> inline std::vector<std::string_view>& splitsv(std::vector<std::string_view>& dst, const std::string& src, T delimiters);
+template <class T> class  splitiv;  // Deepseek version
+template <class T> inline std::vector<std::string>&      splits (std::vector<std::string>& dst, const std::string& src, T delimiters);
+template <class T> inline std::vector<std::string_view>  splitsv(const std::string& src, T delimiters);
 
 // find and replace all(not use <regex> library in small projects):
 inline std::string  replall(                  const std::string& src, const std::string& sfind, const std::string& swith);
@@ -95,30 +98,190 @@ public:
 };
 
 //------------------------------------------------------------------------------------------------
+// This is Deepseek version.
+template <class T>
+class splitiv {
+private:
+    T delimiters_;
+    std::string_view sv_;
+    mutable std::vector<size_t> delimiters_cache_;
+    mutable bool cache_valid_{};
+
+    // 惰性构建分隔符位置缓存
+    void build_cache() const {
+        if (cache_valid_) return;
+
+        delimiters_cache_.clear();
+        size_t pos{};
+        while (true) {
+            const size_t found = sv_.find_first_of(delimiters_, pos);
+            if (nposs(found)) break;
+
+            delimiters_cache_.push_back(found);
+            pos = found + 1;
+        }
+        delimiters_cache_.push_back(sv_.size());
+        cache_valid_ = true;
+    }
+
+public:
+    // 构造函数优化
+    explicit splitiv(T delimiters)
+        : delimiters_(delimiters), sv_("") {}
+
+    splitiv(const std::string& src, T delimiters)
+        : delimiters_(delimiters), sv_(src) {}
+
+    // 设置新源字符串
+    void reset(const std::string& src) {
+        sv_ = src;
+        cache_valid_ = false;  // 重置缓存状态
+    }
+
+    splitiv& operator=(const std::string& src) { reset(src); return *this; }
+
+    // 常量访问方法
+    size_t size() const {
+        if (!cache_valid_) build_cache();
+        return delimiters_cache_.size();
+    }
+
+    // 按需访问优化
+    std::string_view operator[](size_t n) const {
+        if (!cache_valid_) build_cache();
+        if (n >= delimiters_cache_.size()) throw std::out_of_range("");
+
+        const size_t start = (n == 0) ? 0 : delimiters_cache_[n-1] + 1;
+        const size_t end = delimiters_cache_[n];
+        return sv_.substr(start, end - start);
+    }
+
+    // 高效范围访问
+    template <class F>
+    void for_each(F&& callback) const {
+        size_t start{};
+        sv_.find_first_of(delimiters_, 0, [&](size_t found) {
+            callback(sv_.substr(start, found - start));
+            start = found + 1;
+            return false; // 继续查找
+        });
+    }
+};
+
+//------------------------------------------------------------------------------------------------
 template <class T>
 std::vector<std::string>& splits(std::vector<std::string>& dst, const std::string& src, T delimiters)
 {
-	size_t nfrom, nfind;
-	dst.clear();
-	if( !src.empty() ) {
-        for( nfrom=0; !nposs(nfind = src.find_first_of(delimiters, nfrom)); nfrom=nfind+1 )
-            dst.emplace_back(src.substr(nfrom, nfind-nfrom));
-        dst.emplace_back(src.substr(nfrom, src.size()-nfrom));
+    // My version:
+	// size_t nfrom, nfind;
+	// dst.clear();
+	// if( !src.empty() ) {
+    //     for( nfrom=0; !nposs(nfind = src.find_first_of(delimiters, nfrom)); nfrom=nfind+1 )
+    //         dst.emplace_back(src.substr(nfrom, nfind-nfrom));
+    //     dst.emplace_back(src.substr(nfrom, src.size()-nfrom));
+    // }
+    // return dst;
+
+    // Deepseek optimized version:
+    dst.clear();
+    if (src.empty()) return dst;
+
+    const char* const data = src.data();
+    const size_t src_len = src.size();
+    size_t start{};
+
+    // 预分配优化：根据经验值预留空间
+    if (dst.capacity() < 16) {
+        dst.reserve(src_len / 8 + 2);  // 经验公式：每8字符一个分隔符
     }
+
+    // 类型分发优化
+    if constexpr (std::is_same_v<T, char>) {
+        // 单字符分隔符优化路径
+        while (true) {
+            const size_t end = src.find(delimiters, start);
+            dst.emplace_back(data + start, (end == std::string::npos) ? src_len - start : end - start);
+
+            if (end == std::string::npos) break;
+            start = end + 1;
+        }
+    } else {
+        // 多字符分隔符处理
+        const std::string_view delims(delimiters);
+        const size_t delims_len = delims.length();
+
+        // SIMD优化预处理（示例伪代码）
+        if (delims_len > 1 && (src_len > 256)) {
+            // 此处可添加SIMD加速查找逻辑
+        }
+
+        // 常规处理
+        while (true) {
+            const size_t end = src.find_first_of(delims, start);
+            dst.emplace_back(data + start, (end == std::string::npos) ? src_len - start : end - start);
+
+            if (end == std::string::npos) break;
+            start = end + 1;
+        }
+    }
+
+    // 后置容量优化：避免过度预留
+    if (dst.capacity() > dst.size() * 4) {
+        dst.shrink_to_fit();
+    }
+
     return dst;
 }
 
 //------------------------------------------------------------------------------------------------
 template <class T>
-std::vector<std::string_view>& splitsv(std::vector<std::string_view>& dst, const std::string& src, T delimiters)
+std::vector<std::string_view> splitsv(const std::string& src, T delimiters)
 {
-	size_t nfrom, nfind;
-	dst.clear();
-	if( !src.empty() ) {
-        for( nfrom=0; !nposs(nfind = src.find_first_of(delimiters, nfrom)); nfrom=nfind+1 )
-            dst.emplace_back(src.data()+nfrom, nfind-nfrom);
-        dst.emplace_back(src.data()+nfrom, src.size()-nfrom);
+    // My version:
+	// std::vector<std::string_view> dst;
+	// size_t nfrom, nfind;
+	// if( !src.empty() ) {
+    //     for( nfrom=0; !nposs(nfind = src.find_first_of(delimiters, nfrom)); nfrom=nfind+1 )
+    //         dst.emplace_back(src.data()+nfrom, nfind-nfrom);
+    //     dst.emplace_back(src.data()+nfrom, src.size()-nfrom);
+    // }
+    // return dst;
+
+    // Deepseek optimized version:
+    std::vector<std::string_view> dst;
+    if (src.empty()) return dst;
+
+    const size_t src_len = src.size();
+    size_t start_pos{};
+
+    // 类型分发优化
+    if constexpr (std::is_same_v<T, char>) {
+        // 针对单个字符的优化路径
+        while (true) {
+            const size_t found = src.find(delimiters, start_pos);
+            const bool is_end = (found == std::string::npos);
+            const size_t substr_len = is_end ? src_len - start_pos : found - start_pos;
+
+            dst.emplace_back(&src[start_pos], substr_len);
+
+            if (is_end) break;
+            start_pos = found + 1;
+        }
+    } else {
+        const std::string_view delims(delimiters);
+        // 通用分隔符处理
+        while (true) {
+            const size_t found = src.find_first_of(delims, start_pos);
+            const bool is_end = (found == std::string::npos);
+            const size_t substr_len = is_end ? src_len - start_pos : found - start_pos;
+
+            dst.emplace_back(&src[start_pos], substr_len);
+
+            if (is_end) break;
+            start_pos = found + 1;
+        }
     }
+
     return dst;
 }
 
@@ -228,7 +391,7 @@ std::string replall(const std::string& src, const std::string& sfind, const std:
     size_t pos = src.find(sfind);
     if (nposs(pos)) return src;
 
-    size_t nfrom=0;
+    size_t nfrom{};
     std::string res;
     do {
         res += src.substr(nfrom, pos-nfrom)+swith;
@@ -252,7 +415,7 @@ std::string& replall(std::string& res, const std::string& src, const std::string
         return res;
     }
 
-    size_t nfrom=0;
+    size_t nfrom{};
     res.clear();
     do {
         res += src.substr(nfrom, pos-nfrom)+swith;
