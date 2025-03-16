@@ -20,14 +20,13 @@
 #include <fstream>
 #include <filesystem>
 #include "cfgfile.hpp"
+#include "strext.hpp"
 
 using namespace std;
 
 //---------------------------------------------------------------------------------------
 bool cfgfile::reload()
 {
-    const char *space_chars{" \t\n\r\f\v"};
-
     cfg.clear();
     errmsg.clear();
 
@@ -54,13 +53,11 @@ bool cfgfile::reload()
     string line;
     string current_section;
     while (getline(ifs, line)) {
-        // firstly, remove line leading spaces:
-        line.erase(0, line.find_first_not_of(space_chars));
-
+        trimrf(line);
         if (line.empty() || line[0] == '#') continue;
 
         if (line[0] == '[') {
-            size_t end_bracket = line.find(']');
+            const size_t end_bracket{line.find(']')};
             if (end_bracket == string::npos) {
                 errmsg = "Invalid section header: "s + line;
                 return false;
@@ -80,20 +77,17 @@ bool cfgfile::reload()
             return false;
         }
 
-        // Now it's time to remove line trailing spaces:
-        line.erase(line.find_last_not_of(space_chars) + 1);
-
-        size_t sep_pos = line.find(separator);
+        const size_t sep_pos{line.find(separator)};
         if (sep_pos == string::npos) {
             errmsg = "Invalid option format: "s + line;
             return false;
         }
 
-        string key = line.substr(0, sep_pos);
-        string value = line.substr(sep_pos + 1);
+        string key  {line.substr(0, sep_pos)};
+        string value{line.substr(sep_pos+1)};
 
-        key.erase(key.find_last_not_of(space_chars) + 1);       // leading spaces have been removed with line
-        value.erase(0, value.find_first_not_of(space_chars));   // trailing spaces have been removed with line
+        rtrimrf(key);       // leading spaces have been removed with line
+        ltrimrf(value);     // trailing spaces have been removed with line
 
         if (key.empty()) {
             errmsg = "Empty key in option: "s + line;

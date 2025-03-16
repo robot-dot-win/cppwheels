@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <vector>
 #include <type_traits>
+#include <functional>    // For Boyer-Moore searcher since c++17
 #include <stdexcept>     // not needed explicitly since c++20
 
 extern const std::string EMPTY_STR;
@@ -34,28 +35,38 @@ extern const std::string SPACE_CHARS;
 #define lefts(s,n) ((s).substr(0,n))
 #define leftsv(s,n) (std::string_view((s).data(),n))
 
-inline std::string       rights (const std::string& src, size_t n=std::string::npos) { return n>=src.size()? src : src.substr(src.size()-n); }
-inline std::string_view  rightsv(const std::string& src, size_t n=std::string::npos) { return n>=src.size()? std::string_view(src) : std::string_view(src.data()+src.size()-n,n); }
+inline std::string       rights (const std::string& src, size_t n=std::string::npos) noexcept { const size_t src_len{src.size()}; return n>=src_len? src : src.substr(src_len-n); }
+inline std::string_view  rightsv(const std::string& src, size_t n=std::string::npos) noexcept { const size_t src_len{src.size()}; return n>=src_len? std::string_view(src) : std::string_view(src.data()+src_len-n,n); }
 
-inline std::string       trims (const std::string& src);
-inline std::string_view  trimsv(const std::string& src);
-inline std::string&      trimr (      std::string& src);
+inline std::string       trims (std::string_view sv)    noexcept;   // Deepseek recommended
+inline std::string       trims (const std::string& src) noexcept { return trims(std::string_view{src}); }   // not needed for C++ 20
+inline std::string_view  trimsv(std::string_view sv)    noexcept;   // Deepseek recommended
+inline std::string_view  trimsv(const std::string& src) noexcept { return trimsv(std::string_view{src}); }
+inline std::string&      trimrf(      std::string& src) noexcept;
 
-inline std::string       ltrims (const std::string& src);
-inline std::string_view  ltrimsv(const std::string& src);
-//inline std::string&      ltrimr (      std::string& src);
-#define ltrimr(src) (src.erase(0, src.find_first_not_of(SPACE_CHARS)))
+inline std::string       ltrims (std::string_view sv)   noexcept;
+inline std::string       ltrims (const std::string& s)  noexcept { return ltrims(std::string_view{s}); }
+inline std::string_view  ltrimsv(std::string_view sv)   noexcept;
+inline std::string_view  ltrimsv(const std::string& s)  noexcept { return ltrimsv(std::string_view{s}); }
+inline std::string&      ltrimrf(std::string& s)        noexcept { s.erase(s.begin(), std::find_if_not(s.begin(), s.end(), [](unsigned char c) {return std::isspace(c);})); return s; }
+//#define ltrimrf(src) ((src).erase(0, (src).find_first_not_of(SPACE_CHARS))) // My version
 
-inline std::string       rtrims (const std::string& src);
-inline std::string_view  rtrimsv(const std::string& src);
-//inline std::string&      rtrimr (      std::string& src);
-#define rtrimr(src) (src.erase(src.find_last_not_of(SPACE_CHARS) + 1))
+inline std::string       rtrims (std::string_view sv)   noexcept;
+inline std::string       rtrims (const std::string& s)  noexcept { return rtrims(std::string_view{s}); }
+inline std::string_view  rtrimsv(std::string_view sv)   noexcept;
+inline std::string_view  rtrimsv(const std::string& s)  noexcept { return rtrimsv(std::string_view{s}); }
+inline std::string&      rtrimrf(std::string& s)        noexcept { s.erase(std::find_if_not(s.rbegin(), s.rend(), [](unsigned char c) {return std::isspace(c);}).base(), s.end()); return s; }
+//#define rtrimrf(src) (src.erase(src.find_last_not_of(SPACE_CHARS) + 1))    // My version
 
-inline std::string  lcase (const std::string& src);
-inline std::string  ucase (const std::string& src);
+inline std::string  lcases (const std::string& src) noexcept;
+inline std::string  ucases (const std::string& src) noexcept;
 
-inline std::string& lcaser(std::string& src) { std::transform(src.begin(), src.end(), src.begin(), ::tolower); return src; }
-inline std::string& ucaser(std::string& src) { std::transform(src.begin(), src.end(), src.begin(), ::toupper); return src; }
+// My version:
+//inline std::string& lcaserf(std::string& src) { std::transform(src.begin(), src.end(), src.begin(), ::tolower); return src; }
+//inline std::string& ucaserf(std::string& src) { std::transform(src.begin(), src.end(), src.begin(), ::toupper); return src; }
+// Deepseek version:
+inline std::string& lcaserf(std::string& str) noexcept { std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) -> char {return static_cast<char>(std::tolower(c));}); return str; }
+inline std::string& ucaserf(std::string& str) noexcept { std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) -> char {return static_cast<char>(std::toupper(c));}); return str; }
 
 template <class T> class  spliti;
 template <class T> class  splitiv;  // Deepseek version
@@ -63,11 +74,14 @@ template <class T> inline std::vector<std::string>&      splits (std::vector<std
 template <class T> inline std::vector<std::string_view>  splitsv(const std::string& src, T delimiters);
 
 // find and replace all(not use <regex> library in small projects):
-inline std::string  replall(                  const std::string& src, const std::string& sfind, const std::string& swith);
-inline std::string& replall(std::string& res, const std::string& src, const std::string& sfind, const std::string& swith);
-inline std::string& replall(std::string& src, const char cfind, const char cwith) { std::replace(src.begin(),src.end(),cfind,cwith); return src; }
+inline std::string  replall(                  const std::string_view src, const std::string_view sfind, const std::string_view swith) noexcept;
+inline std::string  replall(                  const std::string&     src, const std::string&     sfind, const std::string&     swith) noexcept { return replall(std::string_view(src), std::string_view(sfind), std::string_view(swith)); }  // not needed for C++ 20
+inline std::string& replall(std::string& res, const std::string_view src, const std::string_view sfind, const std::string_view swith) noexcept;
+inline std::string& replall(std::string& res, const std::string&     src, const std::string&     sfind, const std::string&     swith) noexcept { return replall(res, std::string_view(src), std::string_view(sfind), std::string_view(swith)); }  // not needed for C++ 20
+inline std::string& replall(std::string& src, const char cfind, const char cwith) noexcept { std::replace(src.begin(),src.end(),cfind,cwith); return src; }
 
 //------------------------------------------------------------------------------------------------
+// My version (for compatibility)
 template <class T>
 class spliti {
 protected:
@@ -98,7 +112,7 @@ public:
 };
 
 //------------------------------------------------------------------------------------------------
-// This is Deepseek version.
+// Deepseek version
 template <class T>
 class splitiv {
 private:
@@ -126,11 +140,8 @@ private:
 
 public:
     // 构造函数优化
-    explicit splitiv(T delimiters)
-        : delimiters_(delimiters), sv_("") {}
-
-    splitiv(const std::string& src, T delimiters)
-        : delimiters_(delimiters), sv_(src) {}
+    explicit splitiv(T delimiters): delimiters_(delimiters), sv_("") {}
+    splitiv(const std::string& src, T delimiters): delimiters_(delimiters), sv_(src) {}
 
     // 设置新源字符串
     void reset(const std::string& src) {
@@ -138,6 +149,7 @@ public:
         cache_valid_ = false;  // 重置缓存状态
     }
 
+    // This line added by me:
     splitiv& operator=(const std::string& src) { reset(src); return *this; }
 
     // 常量访问方法
@@ -186,8 +198,8 @@ std::vector<std::string>& splits(std::vector<std::string>& dst, const std::strin
     dst.clear();
     if (src.empty()) return dst;
 
-    const char* const data = src.data();
-    const size_t src_len = src.size();
+    const char* const data{src.data()};
+    const size_t src_len{src.size()};
     size_t start{};
 
     // 预分配优化：根据经验值预留空间
@@ -199,7 +211,7 @@ std::vector<std::string>& splits(std::vector<std::string>& dst, const std::strin
     if constexpr (std::is_same_v<T, char>) {
         // 单字符分隔符优化路径
         while (true) {
-            const size_t end = src.find(delimiters, start);
+            const size_t end{src.find(delimiters, start)};
             dst.emplace_back(data + start, (end == std::string::npos) ? src_len - start : end - start);
 
             if (end == std::string::npos) break;
@@ -207,8 +219,8 @@ std::vector<std::string>& splits(std::vector<std::string>& dst, const std::strin
         }
     } else {
         // 多字符分隔符处理
-        const std::string_view delims(delimiters);
-        const size_t delims_len = delims.length();
+        const std::string_view delims{delimiters};
+        const size_t delims_len{delims.length()};
 
         // SIMD优化预处理（示例伪代码）
         if (delims_len > 1 && (src_len > 256)) {
@@ -217,7 +229,7 @@ std::vector<std::string>& splits(std::vector<std::string>& dst, const std::strin
 
         // 常规处理
         while (true) {
-            const size_t end = src.find_first_of(delims, start);
+            const size_t end{src.find_first_of(delims, start)};
             dst.emplace_back(data + start, (end == std::string::npos) ? src_len - start : end - start);
 
             if (end == std::string::npos) break;
@@ -251,16 +263,16 @@ std::vector<std::string_view> splitsv(const std::string& src, T delimiters)
     std::vector<std::string_view> dst;
     if (src.empty()) return dst;
 
-    const size_t src_len = src.size();
+    const size_t src_len{src.size()};
     size_t start_pos{};
 
     // 类型分发优化
     if constexpr (std::is_same_v<T, char>) {
         // 针对单个字符的优化路径
         while (true) {
-            const size_t found = src.find(delimiters, start_pos);
-            const bool is_end = (found == std::string::npos);
-            const size_t substr_len = is_end ? src_len - start_pos : found - start_pos;
+            const size_t found{src.find(delimiters, start_pos)};
+            const bool is_end{found == std::string::npos};
+            const size_t substr_len{is_end ? src_len - start_pos : found - start_pos};
 
             dst.emplace_back(&src[start_pos], substr_len);
 
@@ -268,12 +280,12 @@ std::vector<std::string_view> splitsv(const std::string& src, T delimiters)
             start_pos = found + 1;
         }
     } else {
-        const std::string_view delims(delimiters);
+        const std::string_view delims{delimiters};
         // 通用分隔符处理
         while (true) {
-            const size_t found = src.find_first_of(delims, start_pos);
-            const bool is_end = (found == std::string::npos);
-            const size_t substr_len = is_end ? src_len - start_pos : found - start_pos;
+            const size_t found{src.find_first_of(delims, start_pos)};
+            const bool is_end{found == std::string::npos};
+            const size_t substr_len{is_end ? src_len - start_pos : found - start_pos};
 
             dst.emplace_back(&src[start_pos], substr_len);
 
@@ -286,144 +298,338 @@ std::vector<std::string_view> splitsv(const std::string& src, T delimiters)
 }
 
 //------------------------------------------------------------------------------------------------
-std::string  trims (const std::string& src)
+// My version
+// std::string  trims (const std::string& src)
+// {
+//     if( src.empty() || (!std::isspace(*src.begin()) && !std::isspace(*src.rbegin())) ) return src;
+//
+//     size_t i{};
+//     size_t j = src.size()-1;
+//
+//     while( i<=j && std::isspace(src[i]) ) i++;
+//     if( i>j ) return {};
+//
+//     while( j>i && std::isspace(src[j]) ) j--;
+//     return src.substr(i, j-i+1);
+// }
+//------------------------------------------------------------------------------------------------
+// Deepseek version
+std::string trims(std::string_view sv) noexcept
 {
-    if( src.empty() || (!std::isspace(*src.begin()) && !std::isspace(*src.rbegin())) ) return src;
+    auto first = std::find_if_not(sv.begin(), sv.end(),
+                [](unsigned char c) {return std::isspace(c);});
 
-    size_t i{};
-    size_t j = src.size()-1;
+    if (first == sv.end()) return {};
 
-    while( i<=j && std::isspace(src[i]) ) i++;
-    if( i>j ) return {};
+    auto last = std::find_if_not(sv.rbegin(), sv.rend(),
+                [](unsigned char c) {return std::isspace(c);}).base();
 
-    while( j>i && std::isspace(src[j]) ) j--;
-    return src.substr(i, j-i+1);
+    return (first > last) ? std::string{} : std::string{first, last};
 }
 
-std::string_view  trimsv(const std::string& src)
+//------------------------------------------------------------------------------------------------
+// My version
+// std::string_view  trimsv(const std::string& src)
+// {
+//     if( src.empty() || (!std::isspace(*src.begin()) && !std::isspace(*src.rbegin())) ) return std::string_view(src);
+//
+//     size_t i{};
+//     size_t j = src.size()-1;
+//
+//     while( i<=j && std::isspace(src[i]) ) i++;
+//     if( i>j ) return {};
+//
+//     while( j>i && std::isspace(src[j]) ) j--;
+//     return std::string_view(src.data()+i, j-i+1);
+// }
+//------------------------------------------------------------------------------------------------
+// Deepseek version
+std::string_view trimsv(std::string_view sv) noexcept
 {
-    if( src.empty() || (!std::isspace(*src.begin()) && !std::isspace(*src.rbegin())) ) return std::string_view(src);
+    if (sv.empty()) return sv;
 
-    size_t i{};
-    size_t j = src.size()-1;
+    auto first = std::find_if_not(sv.begin(), sv.end(), [](unsigned char c) {return std::isspace(c);});
 
-    while( i<=j && std::isspace(src[i]) ) i++;
-    if( i>j ) return {};
+    if (first == sv.end()) return {};
 
-    while( j>i && std::isspace(src[j]) ) j--;
-    return std::string_view(src.data()+i, j-i+1);
+    auto last = std::find_if_not(sv.rbegin(), sv.rend(), [](unsigned char c) {return std::isspace(c);}).base();
+
+    return (first < last)
+        ? std::string_view{&*first, static_cast<size_t>(last - first)}
+        : std::string_view{};
 }
 
-std::string& trimr(std::string& src)
+//------------------------------------------------------------------------------------------------
+// My version
+// std::string& trimrf(std::string& src)
+// {
+//     src.erase(0, src.find_first_not_of(SPACE_CHARS));
+//     src.erase(src.find_last_not_of(SPACE_CHARS) + 1);
+//
+//     return src;
+// }
+//------------------------------------------------------------------------------------------------
+// Deepseek version
+std::string& trimrf(std::string& src) noexcept
 {
-    src.erase(0, src.find_first_not_of(SPACE_CHARS));
-    src.erase(src.find_last_not_of(SPACE_CHARS) + 1);
+    auto first = std::find_if_not(src.begin(),  src.end(),  [](unsigned char c) { return std::isspace(c); });
+    auto last  = std::find_if_not(src.rbegin(), src.rend(), [](unsigned char c) { return std::isspace(c); }).base();
+
+    // 触发移动语义优化
+    if (first < last) src = std::string(first, last); else src.clear();
 
     return src;
 }
 
-std::string ltrims(const std::string& src)
+//------------------------------------------------------------------------------------------------
+// My version
+// std::string ltrims(const std::string& src)
+// {
+//     if( src.empty() || !std::isspace(*src.begin()) ) return src;
+//
+//     size_t i{1};
+//     size_t j = src.size()-1;
+//
+//     while( i<=j && std::isspace(src[i]) ) i++;
+//
+//     return i>j? std::string() : src.substr(i);
+// }
+//------------------------------------------------------------------------------------------------
+// Deepseek version
+std::string ltrims(std::string_view sv) noexcept
 {
-    if( src.empty() || !std::isspace(*src.begin()) ) return src;
-
-    size_t i{1};
-    size_t j = src.size()-1;
-
-    while( i<=j && std::isspace(src[i]) ) i++;
-
-    return i>j? std::string() : src.substr(i);
+    auto first = std::find_if_not(sv.begin(), sv.end(), [](unsigned char c) { return std::isspace(c); });
+    return (first != sv.end())? std::string(first, sv.end()) : std::string{};
 }
 
-std::string_view ltrimsv(const std::string& src)
+//------------------------------------------------------------------------------------------------
+// My version
+// std::string_view ltrimsv(const std::string& src)
+// {
+//     if( src.empty() || !std::isspace(*src.begin()) ) return std::string_view(src);
+//
+//     size_t i{1};
+//     size_t j = src.size()-1;
+//
+//     while( i<=j && std::isspace(src[i]) ) i++;
+//
+//     return i>j? std::string_view() : std::string_view(src.data()+i, src.size()-i);
+// }
+//------------------------------------------------------------------------------------------------
+// Deepseek version
+std::string_view ltrimsv(std::string_view sv) noexcept
 {
-    if( src.empty() || !std::isspace(*src.begin()) ) return std::string_view(src);
-
-    size_t i{1};
-    size_t j = src.size()-1;
-
-    while( i<=j && std::isspace(src[i]) ) i++;
-
-    return i>j? std::string_view() : std::string_view(src.data()+i, src.size()-i);
+    auto first = std::find_if_not(sv.begin(), sv.end(), [](unsigned char c) { return std::isspace(c); });
+    return (first != sv.end())? sv.substr(static_cast<size_t>(first - sv.begin())) : std::string_view{};
 }
 
-std::string rtrims (const std::string& src)
+//------------------------------------------------------------------------------------------------
+// My version
+// std::string rtrims (const std::string& src)
+// {
+//     if( src.empty() || !std::isspace(*src.rbegin()) ) return src;
+//
+//     auto r = src.rbegin(); r++;
+//     while( r!=src.rend() && std::isspace(*r) ) r++;
+//     return r==src.rend()? std::string() : src.substr(0, src.size()-(r-src.rbegin()));
+// }
+//------------------------------------------------------------------------------------------------
+// Deepseek version
+std::string rtrims(std::string_view sv) noexcept
 {
-    if( src.empty() || !std::isspace(*src.rbegin()) ) return src;
-
-    auto r = src.rbegin(); r++;
-    while( r!=src.rend() && std::isspace(*r) ) r++;
-    return r==src.rend()? std::string() : src.substr(0, src.size()-(r-src.rbegin()));
+    auto last = std::find_if_not(sv.rbegin(), sv.rend(), [](unsigned char c) { return std::isspace(c); }).base();
+    return (last > sv.begin())? std::string(sv.begin(), last) : std::string{};
 }
 
-std::string_view  rtrimsv(const std::string& src)
+//------------------------------------------------------------------------------------------------
+// My version
+// std::string_view  rtrimsv(const std::string& src)
+// {
+//     if( src.empty() || !std::isspace(*src.rbegin()) ) return std::string_view(src);
+//
+//     auto r = src.rbegin(); r++;
+//     while( r!=src.rend() && std::isspace(*r) ) r++;
+//     return r==src.rend()? std::string_view() : std::string_view(src.data(), src.size()-(r-src.rbegin()));
+// }
+//------------------------------------------------------------------------------------------------
+// Deepseek version
+std::string_view rtrimsv(std::string_view sv) noexcept
 {
-    if( src.empty() || !std::isspace(*src.rbegin()) ) return std::string_view(src);
-
-    auto r = src.rbegin(); r++;
-    while( r!=src.rend() && std::isspace(*r) ) r++;
-    return r==src.rend()? std::string_view() : std::string_view(src.data(), src.size()-(r-src.rbegin()));
+    auto last = std::find_if_not(sv.rbegin(), sv.rend(), [](unsigned char c) { return std::isspace(c); }).base();
+    return (last > sv.begin())
+        ? sv.substr(0, static_cast<size_t>(last - sv.begin()))
+        : std::string_view{};
 }
 
-std::string  lcase (const std::string& src)
+//------------------------------------------------------------------------------------------------
+std::string lcases (const std::string& src) noexcept
 {
     std::string dst;
-    if( !src.empty() ) {
-        dst.resize(src.size());
-        std::transform(src.begin(), src.end(), dst.begin(), ::tolower);
-    }
+    dst.resize(src.size());
+    std::transform(src.cbegin(), src.cend(), dst.begin(), [](unsigned char c) noexcept -> char { return static_cast<char>(std::tolower(c)); });
     return dst;
 }
 
-std::string  ucase (const std::string& src)
+std::string ucases (const std::string& src) noexcept
 {
     std::string dst;
-    if( !src.empty() ) {
-        dst.resize(src.size());
-        std::transform(src.begin(), src.end(), dst.begin(), ::toupper);
-    }
+    dst.resize(src.size());
+    std::transform(src.cbegin(), src.cend(), dst.begin(), [](unsigned char c) noexcept -> char { return static_cast<char>(std::toupper(c)); });
     return dst;
 }
 
-std::string replall(const std::string& src, const std::string& sfind, const std::string& swith)
+//----------------------------------------------------------------------------------------------------
+// My version
+// std::string replall(const std::string& src, const std::string& sfind, const std::string& swith)
+// {
+//     if( src.empty() || sfind.empty() ) return src;
+//
+//     size_t pos = src.find(sfind);
+//     if (nposs(pos)) return src;
+//
+//     size_t nfrom{};
+//     std::string res;
+//     do {
+//         res += src.substr(nfrom, pos-nfrom)+swith;
+//         nfrom = pos+sfind.length();
+//         pos = src.find(sfind, nfrom);
+//     } while( !nposs(pos) );
+//     if( nfrom < src.size() ) res += src.substr(nfrom);
+//     return res;
+// }
+//----------------------------------------------------------------------------------------------------
+// Deepseek version
+std::string replall(const std::string_view src, const std::string_view sfind, const std::string_view swith) noexcept
 {
-    if( src.empty() || sfind.empty() ) return src;
+    // 边界条件处理
+    if (src.empty() || sfind.empty()) return std::string{src};
+    if (sfind.length() > src.length()) return std::string{src};
 
-    size_t pos = src.find(sfind);
-    if (nposs(pos)) return src;
+    // Boyer-Moore 搜索器初始化
+    const auto searcher{std::boyer_moore_searcher(sfind.begin(), sfind.end())};
 
-    size_t nfrom{};
-    std::string res;
-    do {
-        res += src.substr(nfrom, pos-nfrom)+swith;
-        nfrom = pos+sfind.length();
-        pos = src.find(sfind, nfrom);
-    } while( !nposs(pos) );
-    if( nfrom < src.size() ) res += src.substr(nfrom);
-    return res;
+    // 第一阶段：收集所有匹配位置
+    std::vector<size_t> matches{};
+    auto it{src.begin()};
+    const auto end{src.end()};
+    size_t base_pos{};
+
+    while (true) {
+        const auto match{std::search(it, end, searcher)};
+        if (match == end) break;
+
+        const auto pos{static_cast<size_t>(match - src.begin())};
+        matches.emplace_back(pos);
+        it = match + sfind.length();
+        base_pos = pos + sfind.length();
+    }
+
+    if (matches.empty()) return std::string{src};
+
+    // 预分配内存
+    const size_t find_len{sfind.length()};
+    const size_t replace_diff{swith.length() - find_len};
+    std::string result{};
+    result.reserve(src.length() + matches.size() * replace_diff);
+
+    // 第二阶段：构建结果
+    size_t last_pos{};
+    for (const auto& pos : matches) {
+        result.append(src.substr(last_pos, pos - last_pos));
+        result.append(swith);
+        last_pos = pos + find_len;
+    }
+    result.append(src.substr(last_pos));
+
+    return result;
 }
 
-std::string& replall(std::string& res, const std::string& src, const std::string& sfind, const std::string& swith)
+//----------------------------------------------------------------------------------------------------
+// My version
+// std::string& replall(std::string& res, const std::string& src, const std::string& sfind, const std::string& swith)
+// {
+//     if( src.empty() || sfind.empty() ) {
+//         res.clear();
+//         return res;
+//     }
+//
+//     size_t pos = src.find(sfind);
+//     if (nposs(pos)) {
+//         res = src;
+//         return res;
+//     }
+//
+//     size_t nfrom{};
+//     res.clear();
+//     do {
+//         res += src.substr(nfrom, pos-nfrom)+swith;
+//         nfrom = pos+sfind.length();
+//         pos = src.find(sfind, nfrom);
+//     } while( !nposs(pos) );
+//     if( nfrom < src.size() ) res += src.substr(nfrom);
+//     return res;
+// }
+//----------------------------------------------------------------------------------------------------
+// Deepseek version
+std::string& replall(std::string& result, const std::string_view src, const std::string_view sfind, const std::string_view swith) noexcept
 {
-    if( src.empty() || sfind.empty() ) {
-        res.clear();
-        return res;
+    // 清空并重置结果容器
+    result.clear();
+    result.shrink_to_fit();
+
+    // 边界条件处理
+    if (src.empty() || sfind.empty() || sfind.size() > src.size()) {
+        result = src;
+        return result;
     }
 
-    size_t pos = src.find(sfind);
-    if (nposs(pos)) {
-        res = src;
-        return res;
+    // Boyer-Moore算法初始化
+    const auto searcher{std::boyer_moore_searcher(sfind.begin(), sfind.end())};
+
+    // 第一阶段：收集所有匹配位置
+    std::vector<size_t> matches{};
+    auto it{src.begin()};
+    const auto end{src.end()};
+    size_t base_pos{};
+
+    while (true) {
+        const auto match{std::search(it, end, searcher)};
+        if (match == end) break;
+
+        const auto pos{static_cast<size_t>(match - src.begin())};
+        matches.emplace_back(pos);
+        it = match + sfind.size();
+        base_pos = pos + sfind.size();
     }
 
-    size_t nfrom{};
-    res.clear();
-    do {
-        res += src.substr(nfrom, pos-nfrom)+swith;
-        nfrom = pos+sfind.length();
-        pos = src.find(sfind, nfrom);
-    } while( !nposs(pos) );
-    if( nfrom < src.size() ) res += src.substr(nfrom);
-    return res;
+    if (matches.empty()) {
+        result = src;
+        return result;
+    }
+
+    // 预计算所需内存
+    const size_t src_len{src.size()};
+    const size_t find_len{sfind.size()};
+    const size_t replace_diff{swith.size() - find_len};
+    const size_t total_size{src_len + matches.size() * replace_diff};
+
+    // 内存管理优化
+    if (result.capacity() < total_size) {
+        result.reserve(total_size * 1.2);  // 预分配额外20%空间
+    } else {
+        result.reserve(total_size);        // 复用已有容量
+    }
+
+    // 第二阶段：构建结果
+    size_t last_pos{};
+    for (const auto& pos : matches) {
+        result.append(src.data() + last_pos, pos - last_pos);
+        result.append(swith);
+        last_pos = pos + find_len;
+    }
+    result.append(src.data() + last_pos, src_len - last_pos);
+
+    return result;
 }
 
 //------------------------------------------------------------------------------------------------
