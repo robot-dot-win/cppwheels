@@ -32,6 +32,7 @@ extern const std::string SPACE_CHARS;
 
 #define sqlquoted(s) (std::quoted(s,'\'','\''))
 #define nposs(pos) ((pos)==std::string::npos)
+#define npossv(pos) ((pos)==std::string_view::npos)
 #define lefts(s,n) ((s).substr(0,n))
 #define leftsv(s,n) (std::string_view((s).data(),n))
 
@@ -84,8 +85,12 @@ inline std::string& ucaserf(std::string& str) noexcept { std::transform(str.begi
 
 template <class T> class  spliti;
 template <class T> class  splitiv;  // Deepseek version
-template <class T> inline std::vector<std::string>&      splits (std::vector<std::string>& dst, const std::string& src, T delimiters);
-template <class T> inline std::vector<std::string_view>  splitsv(const std::string& src, T delimiters);
+template <class T> inline std::vector<std::string>&     splits (std::vector<std::string>& dst, const std::string& src, T delimiters) noexcept;
+template <class T> inline std::vector<std::string_view> splitsv(const std::string_view src, T delimiters) noexcept;
+template <class T> inline std::vector<std::string_view> splitsv(const std::string& src,     T delimiters) noexcept { return splitsv(std::string_view{src},delimiters); }
+
+template <class T> inline std::pair<std::string_view, std::string_view> splitpairsv(const std::string_view src, T delimiter_char_or_string) noexcept;
+template <class T> inline std::pair<std::string_view, std::string_view> splitpairsv(const std::string&     src, T delimiter_char_or_string) noexcept { return splitpairsv(std::string_view{src},delimiter_char_or_string); }
 
 // find and replace all(not use <regex> library in small projects):
        std::string  replall(                  const std::string_view src, const std::string_view sfind, const std::string_view swith) noexcept;
@@ -95,13 +100,17 @@ inline std::string& replall(std::string& res, const std::string&     src, const 
 inline std::string& replall(std::string& src, const char cfind, const char cwith) noexcept { std::replace(src.begin(),src.end(),cfind,cwith); return src; }
 
 // Remove trailing comment started by the most right character mark, eg. '#' or ';'
-inline std::string_view  rmcommsv  (const std::string_view  sv, const char mark='#') noexcept { const size_t comment_pos = sv.rfind(mark); return (comment_pos == std::string_view::npos) ? sv : sv.substr(0, comment_pos); }
-inline std::string_view& rmcommsvrf(      std::string_view& sv, const char mark='#') noexcept { const size_t comment_pos = sv.rfind(mark); if (comment_pos != std::string_view::npos) sv.remove_suffix(sv.size() - comment_pos); return sv; }
+inline std::string_view  rmcommsv  (const std::string_view  sv, const char mark='#') noexcept { const size_t comment_pos = sv.rfind(mark); return npossv(comment_pos) ? sv : sv.substr(0, comment_pos); }
+inline std::string_view& rmcommsvrf(      std::string_view& sv, const char mark='#') noexcept { const size_t comment_pos = sv.rfind(mark); if (!npossv(comment_pos)) sv.remove_suffix(sv.size() - comment_pos); return sv; }
+
+// string_view windows scanning marked by left and right marks:
+template <class T1, class T2> inline std::string_view lrmarksv(const std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos = 0) noexcept;
+template <class T1, class T2> inline std::vector<std::string_view> strwinsvv(const std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos = 0) noexcept;
+template <class T1, class T2> class strwinsv;
 
 //------------------------------------------------------------------------------------------------
 // My version (for compatibility)
-template <class T>
-class spliti {
+template <class T> class spliti {
 protected:
     T d_;                       // delimiter(s)
     const std::string *ps_;     // hold the string to split
@@ -131,8 +140,7 @@ public:
 
 //------------------------------------------------------------------------------------------------
 // Deepseek version
-template <class T>
-class splitiv {
+template <class T> class splitiv {
 private:
     T delimiters_;
     std::string_view sv_;
@@ -200,7 +208,7 @@ public:
 
 //------------------------------------------------------------------------------------------------
 template <class T>
-std::vector<std::string>& splits(std::vector<std::string>& dst, const std::string& src, T delimiters)
+std::vector<std::string>& splits(std::vector<std::string>& dst, const std::string& src, T delimiters) noexcept
 {
     // My version:
     // size_t nfrom, nfind;
@@ -226,13 +234,13 @@ std::vector<std::string>& splits(std::vector<std::string>& dst, const std::strin
     }
 
     // 类型分发优化
-    if constexpr (std::is_same_v<T, char>) {
+    if constexpr (std::is_same_v<std::remove_cv_t<T>, char>) {
         // 单字符分隔符优化路径
         while (true) {
             const size_t end{src.find(delimiters, start)};
-            dst.emplace_back(data + start, (end == std::string::npos) ? src_len - start : end - start);
+            dst.emplace_back(data + start, (nposs(end)?src_len:end) - start);
 
-            if (end == std::string::npos) break;
+            if (nposs(end)) break;
             start = end + 1;
         }
     } else {
@@ -248,9 +256,9 @@ std::vector<std::string>& splits(std::vector<std::string>& dst, const std::strin
         // 常规处理
         while (true) {
             const size_t end{src.find_first_of(delims, start)};
-            dst.emplace_back(data + start, (end == std::string::npos) ? src_len - start : end - start);
+            dst.emplace_back(data + start, (nposs(end)? src_len:end) - start);
 
-            if (end == std::string::npos) break;
+            if (nposs(end)) break;
             start = end + 1;
         }
     }
@@ -265,7 +273,7 @@ std::vector<std::string>& splits(std::vector<std::string>& dst, const std::strin
 
 //------------------------------------------------------------------------------------------------
 template <class T>
-std::vector<std::string_view> splitsv(const std::string& src, T delimiters)
+std::vector<std::string_view> splitsv(const std::string_view src, T delimiters) noexcept
 {
     // My version:
     // std::vector<std::string_view> dst;
@@ -281,31 +289,31 @@ std::vector<std::string_view> splitsv(const std::string& src, T delimiters)
     std::vector<std::string_view> dst;
     if (src.empty()) return dst;
 
-    const size_t src_len{src.size()};
-    size_t start_pos{};
+    const size_t src_len {src.size()};
+    size_t start_pos {};
 
     // 类型分发优化
-    if constexpr (std::is_same_v<T, char>) {
-        // 针对单个字符的优化路径
+    if constexpr (std::is_same_v<std::remove_cv_t<T>, char>) {
+        // 单字符分隔符优化路径
         while (true) {
-            const size_t found{src.find(delimiters, start_pos)};
-            const bool is_end{found == std::string::npos};
-            const size_t substr_len{is_end ? src_len - start_pos : found - start_pos};
+            const size_t found {src.find(delimiters, start_pos)};
+            const bool is_end  {npossv(found)};
+            const size_t substr_len {(is_end? src_len:found) - start_pos};
 
-            dst.emplace_back(&src[start_pos], substr_len);
+            dst.emplace_back(src.data() + start_pos, substr_len);
 
             if (is_end) break;
             start_pos = found + 1;
         }
     } else {
-        const std::string_view delims{delimiters};
         // 通用分隔符处理
+        const std::string_view delims(delimiters);
         while (true) {
-            const size_t found{src.find_first_of(delims, start_pos)};
-            const bool is_end{found == std::string::npos};
-            const size_t substr_len{is_end ? src_len - start_pos : found - start_pos};
+            const size_t found {src.find_first_of(delims, start_pos)};
+            const bool is_end  {npossv(found)};
+            const size_t substr_len {(is_end? src_len:found) - start_pos};
 
-            dst.emplace_back(&src[start_pos], substr_len);
+            dst.emplace_back(src.data() + start_pos, substr_len);
 
             if (is_end) break;
             start_pos = found + 1;
@@ -490,6 +498,120 @@ std::string_view& rtrimsvrf(std::string_view& sv) noexcept
     auto rit = std::find_if_not(sv.rbegin(), sv.rend(), [](unsigned char c) { return std::isspace(c); });
     sv.remove_suffix(static_cast<size_t>(sv.end() - rit.base()));
     return sv;
+}
+
+//------------------------------------------------------------------------------------------------
+template <class T1, class T2> class strwinsv {
+private:
+    std::string_view src;
+    T1 leftmark;
+    T2 rightmark;
+    size_t current_pos{};
+
+    template <typename T>
+    size_t find_mark(T mark, size_t pos) const {
+        if constexpr (std::is_same_v<std::remove_cv_t<T>, char>)
+            return src.find(mark, pos);
+        else
+            return src.find(std::string_view(mark), pos);
+    }
+
+public:
+    std::string_view winsv;
+
+    strwinsv(const std::string_view s, T1 lm, T2 rm, size_t begin_pos = 0)
+        : src(s), leftmark(lm), rightmark(rm), current_pos(begin_pos) {}
+
+    bool next() {
+        const auto lpos {find_mark(leftmark, current_pos)};
+        if (npossv(lpos)) return false;
+
+        size_t start {lpos};
+        if constexpr (std::is_same_v<std::remove_cv_t<T1>, char>)
+            start += 1;
+        else
+            start += leftmark.size();
+
+        const auto rpos = find_mark(rightmark, start);
+        if (npossv(rpos)) return false;
+
+        winsv = src.substr(start, rpos - start);
+
+        if constexpr (std::is_same_v<std::remove_cv_t<T2>, char>)
+            current_pos = rpos + 1;
+        else
+            current_pos = rpos + rightmark.size();
+
+        return true;
+    }
+};
+
+//------------------------------------------------------------------------------------------------
+template <class T1, class T2> std::string_view
+lrmarksv(const std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos) noexcept
+{
+    auto findmark = [&sv](auto mark, size_t pos) {
+        if constexpr (std::is_same_v<decltype(mark), char>)
+            return sv.find(mark, pos);
+        else
+            return sv.find(std::string_view(mark), pos);
+    };
+
+    const size_t lpos {findmark(leftmark, begin_pos)};
+    if (npossv(lpos)) return {};
+
+    size_t start {lpos};
+    if constexpr (std::is_same_v<std::remove_cv_t<T1>, char>)
+        start += 1;
+    else
+        start += std::string_view(leftmark).size();
+
+    const size_t rpos {findmark(rightmark, start)};
+    if (npossv(rpos)) return {};
+
+    return sv.substr(start, rpos - start);
+}
+
+//------------------------------------------------------------------------------------------------
+// By Deepseek
+template <class T1, class T2> inline std::vector<std::string_view>
+strwinsvv(const std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos) noexcept
+{
+    std::vector<std::string_view> results;
+    strwinsv<T1, T2> scanner(sv, leftmark, rightmark, begin_pos);
+    if constexpr (std::is_same_v<std::remove_cv_t<T1>, char> && std::is_same_v<std::remove_cv_t<T2>, char>)
+        results.reserve(sv.size() / 8);  // 预分配内存优化（按经验值）：每8字符一个匹配
+    while (scanner.next()) results.emplace_back(scanner.winsv);
+    results.shrink_to_fit();
+    return results;
+}
+
+//------------------------------------------------------------------------------------------------
+// Caution: The delimiter is either a character or a STRING. Eg.
+//      splitpairsv("key=value", '=');        // {"key", "value"}
+//      splitpairsv("key=>value", "=>");      // {"key", "value"}
+template <class T> inline std::pair<std::string_view, std::string_view>
+splitpairsv(const std::string_view src, T delimiter_char_or_string) noexcept
+{
+    size_t pos {std::string_view::npos};
+    size_t delimiter_length {};
+
+    if constexpr (std::is_same_v<std::remove_cv_t<T>, char>) {
+        pos = src.find(delimiter_char_or_string);
+        delimiter_length = 1;
+    } else {
+        const std::string_view sv_delimiter(delimiter_char_or_string);
+        pos = src.find(sv_delimiter);
+        delimiter_length = sv_delimiter.size();
+    }
+
+    if (npossv(pos) || delimiter_length == 0) return {src, {}};
+
+    const size_t second_start {pos+delimiter_length};
+    return {
+        src.substr(0, pos),
+        (second_start < src.size()) ? src.substr(second_start) : std::string_view{}
+    };
 }
 
 //------------------------------------------------------------------------------------------------
