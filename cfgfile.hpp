@@ -58,12 +58,14 @@ public:
 //[section 1]
 //
 //[section 2]
-//name 1 = value 1
+//name 1 = value 1   # Comment ...
 //name 2 = value 2
+//name 3 = Value_contains_#_character   # Must followed by a comment at the line
 //
 //Ignored Matter
 //---------------------------
-//Empty lines and lines that start with a '#' in the first non-space column are ignored.
+//.Empty lines and lines that start with a '#' in the first non-space column are ignored.
+//.From the most right character '#' to the end of the line are ignored.
 //
 //Sections
 //---------------------------
@@ -106,5 +108,8 @@ public:
 //  trailing spaces are removed.
 //
 //The options's value is all the text from the separator character until the end of the
-//line. Leading and trailing spaces around the option value are removed, but spaces
-//within the value are preserved.
+//line or the most right character '#', which starts a comment at the line. Leading and
+//trailing spaces around the option value are removed, but spaces within the value are
+//preserved.
+//
+//So if the value contains '#' characters，you have to add a comment at the line.
