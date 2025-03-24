@@ -16,85 +16,62 @@
 //  along with this program. If not, see <https://www.gnu.org/licenses/>.
 //------------------------------------------------------------------------
 
-#include <bit>      // Since C++20
-#include <sstream>
+#include <charconv>
+#include <string_view>
 #include "ip4.hpp"
 
-using namespace std;
+//-------------------------------------------------------------------------------------------
+ip4::ip4(const std::string& sa) {
+    std::string_view sv(sa);
+    size_t start{};
+    int idx{};
 
-//---------------------------------------------------------------------------------------
-ip4::ip4(const string& _sa)
-{
-    const invalid_argument e_bad_format("Bad IPv4 format.");
-    const out_of_range     e_range_error("Invalid IPv4 byte range(0-255).");
+    for (; idx < 4; ++idx) {
+        size_t end {sv.find('.', start)};
 
-    if( _sa.empty() || _sa.size()<7 ) throw e_bad_format;
+        if (idx == 3)
+            end = sv.size();
+        else if (end == std::string_view::npos)
+            throw std::invalid_argument("Bad IPv4 format");
 
-    stringstream ss(_sa);
-    size_t n;
-    unsigned long ul;
-    int nc;
-    string s;
+        auto part {sv.substr(start, end - start)};
+        uint32_t byte;
+        auto [ptr, ec] = std::from_chars(part.data(), part.data() + part.size(), byte);
 
-    for( nc=0; nc<4 && getline(ss,s,'.'); nc++ ) {
-        try {
-            ul = stoul(s, &n);  // may throw exception invalid_argument or range_error，but what()="stoul"
-        } catch(...) {
-            throw e_bad_format;
-        }
-        if( ul>255 )      throw e_range_error;
-        if( n!=s.size() ) throw e_bad_format;    // invalid character in string
-        __IP4_BA(nc)=(uint8_t)ul;
+        if (ec != std::errc() || ptr != part.data() + part.size() || byte > 255)
+            throw std::invalid_argument("Invalid IPv4 component");
+
+        (*this)[idx] = static_cast<uint8_t>(byte);
+        start = end + 1;
     }
-    if( nc!=4 || getline(ss,s,'.') ) throw e_bad_format;  // less bytes or extra characters
+    if (idx != 4 || start - 1 != sv.size())
+        throw std::invalid_argument("Extra characters in IPv4");
 }
 
-//---------------------------------------------------------------------------------------
-ip4net::ip4net(const string& ips)
-{
-    const invalid_argument e_bad_format("Invalid subnet mask string.");
-    const out_of_range     e_invalid_mask_range("Invalid subnet mask range(0-32).");
-    const out_of_range     e_mask_byte_error("Invalid subnet mask byte range(0-255).");
+//-------------------------------------------------------------------------------------------
+ip4net::ip4net(const std::string& ips) {
+    size_t slash {ips.find('/')};
+    address_ = ip4(ips.substr(0, slash));  // may throw exception
 
-    size_t n;
-    unsigned long ul;
-
-    if( ips.empty() || ips.size()<7 ) throw e_bad_format;
-
-    size_t pos_slash = ips.find_first_of('/');
-    if( pos_slash == string::npos ) {
-        taddr = ip4(ips);   // may throw exception
-        tmask=32;
+    if (slash == std::string::npos) {
+        mask_ = 32;
         return;
     }
 
-    taddr = ip4(ips.substr(0,pos_slash));   // may throw exception
-
-    if( ips.find_first_of('.',pos_slash+1) == string::npos ) {   // mask is like "/26"
-        try {
-            ul = stoul(ips.substr(pos_slash+1), &n);
-        } catch(...) {
-            throw e_bad_format;
-        }
-        if( ul>32 ) throw e_invalid_mask_range;
-        if( n!=ips.size()-pos_slash-1 ) throw e_bad_format;    // invalid character in string
-        tmask = (uint8_t)ul;
-        return;
+    std::string_view mask_sv(ips.substr(slash + 1));
+    if (mask_sv.find('.') != std::string_view::npos) {
+        ip4 mask(std::string{mask_sv});  // may throw exception
+       // bits of mask must be continuous '1' from left to right:
+        auto continuous {std::countl_one(mask.get_aa())};   // type: int, range: [0,32]
+        if (continuous != std::popcount(mask.get_aa()))
+            throw std::invalid_argument("Invalid IPv4 mask pattern");
+        mask_ = static_cast<uint8_t>(continuous);
+    } else {
+        uint32_t bits;
+        auto [ptr, ec] = std::from_chars(mask_sv.data(), mask_sv.data() + mask_sv.size(), bits);
+        if (ec != std::errc() || bits > 32)
+            throw std::invalid_argument("Invalid IPv4 mask bits");
+        mask_ = bits;
     }
-
-    // mask is like "/255.255.255.192"
-    ip4 m;
-    try {
-        m = ips.substr(pos_slash+1);
-    }
-    catch( const out_of_range& e ) {
-        throw e_mask_byte_error;
-    }
-    catch(...) {
-        throw e_bad_format;
-    }
-
-    // bits of mask must be continuous '1' from left to right:
-    tmask = countl_one(m.aa);
-    if( tmask != popcount(m.aa) ) throw e_bad_format;
 }
+//-------------------------------------------------------------------------------------------

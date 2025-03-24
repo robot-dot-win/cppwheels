@@ -51,23 +51,17 @@ bool cfgfile::reload()
     }
 
     string line;
-    string current_section;
+    string current_section{};
     while (getline(ifs, line)) {
-        string_view linesv = rmcommsv(line);    // only the most right '#' and following are removed
-        trimsvrf(linesv);
-        if (linesv.empty() || linesv[0] == '#') continue;  // a line may be started with '#' and followed by other '#'
+        string_view linesv = rmcommsv(line);
+        if (linesv.empty()) continue;
 
         if (linesv[0] == '[') {
-            const size_t end_bracket{linesv.find(']')};
-            if (end_bracket == string::npos) {
-                errmsg = "Invalid section header: "s + line;
-                return false;
-            }
-            // section name including leading and trailing spaces,
-            // means that one or more space characters can act as section name.
-            current_section = linesv.substr(1, end_bracket - 1);
+            // Section name including leading and trailing spaces means that one or more space characters can act as section name.
+            // Characters after ']' are ignored.
+            current_section = lrmarksv(linesv, '[', ']');
             if (current_section.empty()) {
-                errmsg = "Section name is empty: "s + line;
+                errmsg = "Invalid section header: "s + line;
                 return false;
             }
             continue;
@@ -78,21 +72,14 @@ bool cfgfile::reload()
             return false;
         }
 
-        const size_t sep_pos{linesv.find(separator)};
-        if (sep_pos == string::npos) {
-            errmsg = "Invalid option format: "s + line;
-            return false;
-        }
+        const pair key_value {splitpairsv(linesv,separator)};
 
-        string_view key   {linesv.substr(0,sep_pos)};
-        string_view value {linesv.substr(sep_pos+1)};
-
-        if( rtrimsvrf(key).empty() ) {  // leading spaces have been removed with linesv
+        if( key_value.first.empty() ) {
             errmsg = "Empty key in option: "s + line;
             return false;
         }
 
-        cfg[current_section][std::string(key)] = ltrimsvrf(value);  // trailing spaces of value have been removed with linesv, and value can be empty
+        cfg[current_section][std::string(key_value.first)] = key_value.second;
     }
 
     return true;
@@ -123,7 +110,7 @@ bool cfgfile::save()
     for (const auto& section_pair : cfg) {
         ofs << '[' << section_pair.first << ']' << endl;
         for (const auto& option_pair : section_pair.second) {
-            ofs << option_pair.first << ' ' << separator << ' ' << option_pair.second;
+            ofs << option_pair.first << separator << option_pair.second;
             if( option_pair.second.find('#') != std::string::npos ) ofs << auto_comment;
             ofs << endl;
         }
@@ -142,4 +129,3 @@ bool cfgfile::save()
     errmsg.clear();
     return true;
 }
-

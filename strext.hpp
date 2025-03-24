@@ -89,8 +89,8 @@ template <class T> inline std::vector<std::string>&     splits (std::vector<std:
 template <class T> inline std::vector<std::string_view> splitsv(const std::string_view src, T delimiters) noexcept;
 template <class T> inline std::vector<std::string_view> splitsv(const std::string& src,     T delimiters) noexcept { return splitsv(std::string_view{src},delimiters); }
 
-template <class T> inline std::pair<std::string_view, std::string_view> splitpairsv(const std::string_view src, T delimiter_char_or_string) noexcept;
-template <class T> inline std::pair<std::string_view, std::string_view> splitpairsv(const std::string&     src, T delimiter_char_or_string) noexcept { return splitpairsv(std::string_view{src},delimiter_char_or_string); }
+template <class T> inline std::pair<std::string_view, std::string_view> splitpairsv(const std::string_view src, T separator, bool itrim=true) noexcept;
+template <class T> inline std::pair<std::string_view, std::string_view> splitpairsv(const std::string&     src, T separator, bool itrim=true) noexcept { return splitpairsv(std::string_view{src},separator,itrim); }
 
 // find and replace all(not use <regex> library in small projects):
        std::string  replall(                  const std::string_view src, const std::string_view sfind, const std::string_view swith) noexcept;
@@ -100,12 +100,12 @@ inline std::string& replall(std::string& res, const std::string&     src, const 
 inline std::string& replall(std::string& src, const char cfind, const char cwith) noexcept { std::replace(src.begin(),src.end(),cfind,cwith); return src; }
 
 // Remove trailing comment started by the most right character mark, eg. '#' or ';'
-inline std::string_view  rmcommsv  (const std::string_view  sv, const char mark='#') noexcept { const size_t comment_pos = sv.rfind(mark); return npossv(comment_pos) ? sv : sv.substr(0, comment_pos); }
-inline std::string_view& rmcommsvrf(      std::string_view& sv, const char mark='#') noexcept { const size_t comment_pos = sv.rfind(mark); if (!npossv(comment_pos)) sv.remove_suffix(sv.size() - comment_pos); return sv; }
+inline std::string_view  rmcommsv  (const std::string_view  srcv, const char mark='#', bool itrim=true) noexcept;
+inline std::string_view& rmcommsvrf(      std::string_view& srcv, const char mark='#', bool itrim=true) noexcept;
 
 // string_view windows scanning marked by left and right marks:
-template <class T1, class T2> inline std::string_view lrmarksv(const std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos = 0) noexcept;
-template <class T1, class T2> inline std::vector<std::string_view> strwinsvv(const std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos = 0) noexcept;
+template <class T1, class T2> inline std::string_view              lrmarksv (const std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos=0) noexcept;
+template <class T1, class T2> inline std::vector<std::string_view> strwinsvv(const std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos=0) noexcept;
 template <class T1, class T2> class strwinsv;
 
 //------------------------------------------------------------------------------------------------
@@ -587,31 +587,56 @@ strwinsvv(const std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos
 }
 
 //------------------------------------------------------------------------------------------------
-// Caution: The delimiter is either a character or a STRING. Eg.
+// Caution: The separator is either a character or a STRING. Eg.
 //      splitpairsv("key=value", '=');        // {"key", "value"}
 //      splitpairsv("key=>value", "=>");      // {"key", "value"}
 template <class T> inline std::pair<std::string_view, std::string_view>
-splitpairsv(const std::string_view src, T delimiter_char_or_string) noexcept
+splitpairsv(const std::string_view src, T separator, bool itrim) noexcept
 {
     size_t pos {std::string_view::npos};
     size_t delimiter_length {};
 
     if constexpr (std::is_same_v<std::remove_cv_t<T>, char>) {
-        pos = src.find(delimiter_char_or_string);
+        pos = src.find(separator);
         delimiter_length = 1;
     } else {
-        const std::string_view sv_delimiter(delimiter_char_or_string);
+        const std::string_view sv_delimiter(separator);
         pos = src.find(sv_delimiter);
         delimiter_length = sv_delimiter.size();
     }
 
-    if (npossv(pos) || delimiter_length == 0) return {src, {}};
+    if (npossv(pos) || delimiter_length == 0) return {itrim?trimsv(src):src, {}};
 
     const size_t second_start {pos+delimiter_length};
     return {
-        src.substr(0, pos),
-        (second_start < src.size()) ? src.substr(second_start) : std::string_view{}
+        itrim? trimsv(src.substr(0, pos)) : src.substr(0, pos),
+        second_start<src.size()? (itrim? trimsv(src.substr(second_start)) : src.substr(second_start)) : std::string_view{}
     };
+}
+
+//------------------------------------------------------------------------------------------------
+// If the first char is mark, the whole string is comment, otherwise the comment is from the most
+// right mark char to the end of the string.
+inline std::string_view rmcommsv(const std::string_view srcv, const char mark, bool itrim) noexcept
+{
+    std::string_view sv = itrim? trimsv(srcv) : srcv;
+    if( sv.empty() || sv[0]==mark ) return {};
+
+    const size_t comment_pos = sv.rfind(mark);
+    return npossv(comment_pos)? sv : (itrim? rtrimsv(sv.substr(0, comment_pos)) : sv.substr(0, comment_pos));
+}
+
+//------------------------------------------------------------------------------------------------
+inline std::string_view& rmcommsvrf(std::string_view& srcv, const char mark, bool itrim) noexcept
+{
+    if( itrim ) trimsvrf(srcv);
+    if( srcv.empty() || srcv[0]==mark ) return srcv={};
+
+    const size_t comment_pos = srcv.rfind(mark);
+    if( npossv(comment_pos) ) return srcv;
+    srcv.remove_suffix(srcv.size() - comment_pos);
+    if( itrim ) rtrimsvrf(srcv); // remove spaces between contents and mark
+    return srcv;
 }
 
 //------------------------------------------------------------------------------------------------

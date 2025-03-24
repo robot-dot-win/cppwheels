@@ -61,6 +61,8 @@ public:
 //name 1 = value 1   # Comment ...
 //name 2 = value 2
 //name 3 = Value_contains_#_character   # Must followed by a comment at the line
+//name 4 =           # Empty value
+//name 5             # Empty value
 //
 //Ignored Matter
 //---------------------------
@@ -103,9 +105,10 @@ public:
 //
 //. The name cannot start with '[' or '#', those characters start a section header or a
 //  comment;
-//. The name may not contain the separator '='.
+//. The name may not contain the separator '=' or the comment mark '#'.
 //. Like section names, an option name may contain spaces within it, but all leading and
 //  trailing spaces are removed.
+//. If '=' is omitted, value is an empty string.
 //
 //The options's value is all the text from the separator character until the end of the
 //line or the most right character '#', which starts a comment at the line. Leading and
