@@ -200,6 +200,8 @@ std::string genPassword(PasswordSecurityLevel level, size_t length)
     std::uniform_int_distribution<size_t> dis(0, charset.size() - 1);
 
     std::string password;
+    constexpr size_t MIN_LEN {4};
+    length = std::max(MIN_LEN, length); // or: length = std::max(size_t{4}, length);
     password.reserve(length);
 
     std::generate_n(std::back_inserter(password), length, [&]{return charset[dis(gen)];});
@@ -229,16 +231,15 @@ bool chkPassword(std::string_view password, PasswordSecurityLevel level)
             case PasswordSecurityLevel::MEDIUM:
                 return (flags & LOWER) && (flags & UPPER) && (flags & DIGIT);
             case PasswordSecurityLevel::HIGH:
-                return (flags & LOWER) && (flags & UPPER) &&
-                       (flags & DIGIT) && (flags & SPECIAL);
+                return (flags & LOWER) && (flags & UPPER) && (flags & DIGIT) && (flags & SPECIAL);
         }
         return false;
     };
 
     for (const char c : password) {
-        if (std::islower(c))       flags |= LOWER;
-        else if (std::isupper(c))  flags |= UPPER;
-        else if (std::isdigit(c))  flags |= DIGIT;
+        if      (std::islower(c))         flags |= LOWER;
+        else if (std::isupper(c))         flags |= UPPER;
+        else if (std::isdigit(c))         flags |= DIGIT;
         else if (special_set.contains(c)) flags |= SPECIAL;     // C++ 20
 
         if (check_complete()) return true;

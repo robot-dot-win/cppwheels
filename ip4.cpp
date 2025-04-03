@@ -21,8 +21,7 @@
 #include "ip4.hpp"
 
 //-------------------------------------------------------------------------------------------
-ip4::ip4(const std::string& sa) {
-    std::string_view sv(sa);
+ip4::ip4(std::string_view sv) {
     size_t start{};
     int idx{};
 
@@ -49,18 +48,18 @@ ip4::ip4(const std::string& sa) {
 }
 
 //-------------------------------------------------------------------------------------------
-ip4net::ip4net(const std::string& ips) {
-    size_t slash {ips.find('/')};
-    address_ = ip4(ips.substr(0, slash));  // may throw exception
+ip4net::ip4net(std::string_view ipsv) {
+    size_t slash {ipsv.find('/')};
+    address_ = ip4(ipsv.substr(0, slash));  // may throw exception
 
     if (slash == std::string::npos) {
         mask_ = 32;
         return;
     }
 
-    std::string_view mask_sv(ips.substr(slash + 1));
+    std::string_view mask_sv {ipsv.substr(slash+1)};
     if (mask_sv.find('.') != std::string_view::npos) {
-        ip4 mask(std::string{mask_sv});  // may throw exception
+        ip4 mask(mask_sv);  // may throw exception
        // bits of mask must be continuous '1' from left to right:
         auto continuous {std::countl_one(mask.get_aa())};   // type: int, range: [0,32]
         if (continuous != std::popcount(mask.get_aa()))

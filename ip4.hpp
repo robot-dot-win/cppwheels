@@ -46,7 +46,8 @@ public:
         if constexpr (ip4_byte_index(0) != 0) std::reverse(ba_, ba_ + 4);
     }
 
-    ip4(const std::string& sa);
+    ip4(std::string_view sv);
+    ip4(const std::string& sa) { ip4(std::string_view(sa)); }
     ip4(const char* pa): ip4(pa ? std::string(pa) : throw std::invalid_argument("Null IPv4 string")) {}
 
           uint8_t& operator[](size_t n)       { return ba_[ip4_byte_index(n)]; }
@@ -99,7 +100,8 @@ public:
 
     // ips: "ip[/mask]", e.g. "192.168.0.6" "192.168.0.8/26" "192.168.0.8/255.255.255.192"
     //      When "/bits" is omitted, mask defaults to 32.
-    explicit ip4net(const std::string& ips);
+    explicit ip4net(std::string_view ipsv);
+    explicit ip4net(const std::string& ips) { ip4net(std::string_view(ips)); }
     explicit ip4net(const char* ipc) { ipc? *this=ip4net(std::string(ipc)) : throw std::invalid_argument("NULL IPv4 net string."); }
 
     [[nodiscard]] uint8_t nmask() const { return mask_; }
