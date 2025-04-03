@@ -16,10 +16,13 @@
 //  along with this program. If not, see <https://www.gnu.org/licenses/>.
 //------------------------------------------------------------------------
 
+#include <random>
+#include <unordered_set>
+
 #include "strext.hpp"
 
 const std::string EMPTY_STR{};
-const std::string SPACE_CHARS{" \t\n\r\f\v"};
+//const std::string SPACE_CHARS{" \t\n\r\f\v"};
 
 //----------------------------------------------------------------------------------------------------
 // My version
@@ -42,10 +45,10 @@ const std::string SPACE_CHARS{" \t\n\r\f\v"};
 // }
 //----------------------------------------------------------------------------------------------------
 // Deepseek version
-std::string replall(const std::string_view src, const std::string_view sfind, const std::string_view swith) noexcept
+std::string replall(std::string_view src, std::string_view sfind, std::string_view swith) noexcept
 {
     // 边界条件处理
-    if (src.empty() || sfind.empty()) return std::string{src};
+    if (src.empty() || sfind.empty())  return std::string{src};
     if (sfind.length() > src.length()) return std::string{src};
 
     // Boyer-Moore 搜索器初始化
@@ -55,7 +58,6 @@ std::string replall(const std::string_view src, const std::string_view sfind, co
     std::vector<size_t> matches{};
     auto it{src.begin()};
     const auto end{src.end()};
-    size_t base_pos{};
 
     while (true) {
         const auto match{std::search(it, end, searcher)};
@@ -64,7 +66,6 @@ std::string replall(const std::string_view src, const std::string_view sfind, co
         const auto pos{static_cast<size_t>(match - src.begin())};
         matches.emplace_back(pos);
         it = match + sfind.length();
-        base_pos = pos + sfind.length();
     }
 
     if (matches.empty()) return std::string{src};
@@ -114,7 +115,7 @@ std::string replall(const std::string_view src, const std::string_view sfind, co
 // }
 //----------------------------------------------------------------------------------------------------
 // Deepseek version
-std::string& replall(std::string& result, const std::string_view src, const std::string_view sfind, const std::string_view swith) noexcept
+std::string& replall(std::string& result, std::string_view src, std::string_view sfind, std::string_view swith) noexcept
 {
     // 清空并重置结果容器
     result.clear();
@@ -133,7 +134,6 @@ std::string& replall(std::string& result, const std::string_view src, const std:
     std::vector<size_t> matches{};
     auto it{src.begin()};
     const auto end{src.end()};
-    size_t base_pos{};
 
     while (true) {
         const auto match{std::search(it, end, searcher)};
@@ -142,7 +142,6 @@ std::string& replall(std::string& result, const std::string_view src, const std:
         const auto pos{static_cast<size_t>(match - src.begin())};
         matches.emplace_back(pos);
         it = match + sfind.size();
-        base_pos = pos + sfind.size();
     }
 
     if (matches.empty()) {
@@ -151,10 +150,10 @@ std::string& replall(std::string& result, const std::string_view src, const std:
     }
 
     // 预计算所需内存
-    const size_t src_len{src.size()};
-    const size_t find_len{sfind.size()};
+    const size_t src_len     {src.size()};
+    const size_t find_len    {sfind.size()};
     const size_t replace_diff{swith.size() - find_len};
-    const size_t total_size{src_len + matches.size() * replace_diff};
+    const size_t total_size  {src_len + matches.size() * replace_diff};
 
     // 内存管理优化
     if (result.capacity() < total_size) {
@@ -174,4 +173,75 @@ std::string& replall(std::string& result, const std::string_view src, const std:
 
     return result;
 }
+
 //----------------------------------------------------------------------------------------
+std::string genPassword(PasswordSecurityLevel level, size_t length)
+{
+    const std::string lowercase    {"abcdefghijklmnopqrstuvwxyz"};
+    const std::string uppercase    {"ABCDEFGHIJKLMNOPQRSTUVWXYZ"};
+    const std::string digits       {"0123456789"};
+    const std::string specialChars {"!@#$%^&*()_+-=[]{}|;':\",./<>?"};
+
+    std::string charset;
+    switch (level) {
+        case PasswordSecurityLevel::LOW:
+            charset = lowercase + digits;
+            break;
+        case PasswordSecurityLevel::MEDIUM:
+            charset = lowercase + uppercase + digits;
+            break;
+        case PasswordSecurityLevel::HIGH:
+        default:
+            charset = lowercase + uppercase + digits + specialChars;
+            break;
+    }
+
+    static thread_local std::mt19937 gen(std::random_device{}());
+    std::uniform_int_distribution<size_t> dis(0, charset.size() - 1);
+
+    std::string password;
+    password.reserve(length);
+
+    std::generate_n(std::back_inserter(password), length, [&]{return charset[dis(gen)];});
+
+    return password;
+}
+
+//----------------------------------------------------------------------------------------
+bool chkPassword(std::string_view password, PasswordSecurityLevel level)
+{
+    constexpr std::string_view specialChars {"!@#$%^&*()_+-=[]{}|;':\",./<>?"};
+
+    enum CharFlags : uint8_t {
+        LOWER = 1 << 0,
+        UPPER = 1 << 1,
+        DIGIT = 1 << 2,
+        SPECIAL = 1 << 3
+    };
+
+    uint8_t flags{};
+    static const std::unordered_set special_set(specialChars.begin(), specialChars.end());
+
+    const auto check_complete = [level, flags] {
+        switch (level) {
+            case PasswordSecurityLevel::LOW:
+                return (flags & LOWER) && (flags & DIGIT);
+            case PasswordSecurityLevel::MEDIUM:
+                return (flags & LOWER) && (flags & UPPER) && (flags & DIGIT);
+            case PasswordSecurityLevel::HIGH:
+                return (flags & LOWER) && (flags & UPPER) &&
+                       (flags & DIGIT) && (flags & SPECIAL);
+        }
+        return false;
+    };
+
+    for (const char c : password) {
+        if (std::islower(c))       flags |= LOWER;
+        else if (std::isupper(c))  flags |= UPPER;
+        else if (std::isdigit(c))  flags |= DIGIT;
+        else if (special_set.contains(c)) flags |= SPECIAL;     // C++ 20
+
+        if (check_complete()) return true;
+    }
+    return check_complete();
+}
