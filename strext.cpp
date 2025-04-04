@@ -182,29 +182,42 @@ std::string genPassword(PasswordSecurityLevel level, size_t length)
     const std::string digits       {"0123456789"};
     const std::string specialChars {"!@#$%^&*()_+-=[]{}|;':\",./<>?"};
 
-    std::string charset;
+    std::vector<std::string> required_charsets;
+    std::string full_charset;
+
     switch (level) {
         case PasswordSecurityLevel::LOW:
-            charset = lowercase + digits;
+            required_charsets = {lowercase, digits};
+            full_charset = lowercase + digits;
             break;
         case PasswordSecurityLevel::MEDIUM:
-            charset = lowercase + uppercase + digits;
+            required_charsets = {lowercase, uppercase, digits};
+            full_charset = lowercase + uppercase + digits;
             break;
         case PasswordSecurityLevel::HIGH:
         default:
-            charset = lowercase + uppercase + digits + specialChars;
-            break;
+            required_charsets = {lowercase, uppercase, digits, specialChars};
+            full_charset = lowercase + uppercase + digits + specialChars;
     }
 
+    const size_t min_length {required_charsets.size()};
+    length = std::max(min_length, length);
+
     static thread_local std::mt19937 gen(std::random_device{}());
-    std::uniform_int_distribution<size_t> dis(0, charset.size() - 1);
 
     std::string password;
-    constexpr size_t MIN_LEN {4};
-    length = std::max(MIN_LEN, length); // or: length = std::max(size_t{4}, length);
-    password.reserve(length);
+    for (const auto& charset : required_charsets) {
+        std::uniform_int_distribution<size_t> dis(0, charset.size() - 1);
+        password += charset[dis(gen)];
+    }
 
-    std::generate_n(std::back_inserter(password), length, [&]{return charset[dis(gen)];});
+    if (length > min_length) {
+        std::uniform_int_distribution<size_t> dis(0, full_charset.size() - 1);
+        for (size_t i = min_length; i < length; ++i)
+            password += full_charset[dis(gen)];
+    }
+
+    std::shuffle(password.begin(), password.end(), gen);
 
     return password;
 }
