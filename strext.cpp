@@ -17,7 +17,6 @@
 //------------------------------------------------------------------------
 
 #include <random>
-#include <unordered_set>
 
 #include "strext.hpp"
 
@@ -235,7 +234,6 @@ bool chkPassword(std::string_view password, PasswordSecurityLevel level)
     };
 
     uint8_t flags{};
-    static const std::unordered_set special_set(specialChars.begin(), specialChars.end());
 
     const auto check_complete = [level, flags] {
         switch (level) {
@@ -250,10 +248,10 @@ bool chkPassword(std::string_view password, PasswordSecurityLevel level)
     };
 
     for (const char c : password) {
-        if      (std::islower(c))         flags |= LOWER;
-        else if (std::isupper(c))         flags |= UPPER;
-        else if (std::isdigit(c))         flags |= DIGIT;
-        else if (special_set.contains(c)) flags |= SPECIAL;     // C++ 20
+        if      (std::islower(c)) flags |= LOWER;
+        else if (std::isupper(c)) flags |= UPPER;
+        else if (std::isdigit(c)) flags |= DIGIT;
+        else if (!npossv(specialChars.find(c))) flags |= SPECIAL;
 
         if (check_complete()) return true;
     }
