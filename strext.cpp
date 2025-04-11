@@ -222,7 +222,7 @@ std::string genPassword(PasswordSecurityLevel level, size_t length)
 }
 
 //----------------------------------------------------------------------------------------
-bool chkPassword(std::string_view password, PasswordSecurityLevel level)
+bool chkPassword(std::string_view password, PasswordSecurityLevel level, size_t min_length)
 {
     constexpr std::string_view specialChars {"!@#$%^&*()_+-=[]{}|;':\",./<>?"};
 
@@ -232,6 +232,8 @@ bool chkPassword(std::string_view password, PasswordSecurityLevel level)
         DIGIT = 1 << 2,
         SPECIAL = 1 << 3
     };
+
+    if( password.length() < min_length ) return false;
 
     uint8_t flags{};
 

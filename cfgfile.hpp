@@ -22,8 +22,10 @@
 #include <string>
 #include <map>
 
+enum class cfgopenmode {r, rw};
+
 //-------------------------------------------------------------------------------------------
-class cfgfile {
+class cfgfile {     // Only for single thread usage
 protected:
     const std::string srcfile;
     const bool readonly;
@@ -33,8 +35,8 @@ public:
     std::map<std::string, std::map<std::string, std::string>> cfg;
 
     // After initializing an instance, check errmsg to judge if error occurs.
-    cfgfile(const std::string sfile="", bool rdonly=true, const char sep='=')
-        : srcfile(sfile), readonly(rdonly), separator(sep)
+    cfgfile(const std::string sfile="", cfgopenmode mode=cfgopenmode::r, const char sep='=')
+        : srcfile(sfile), readonly(mode==cfgopenmode::r), separator(sep)
         { reload(); }
 
     ~cfgfile() { if(!readonly) save(); }

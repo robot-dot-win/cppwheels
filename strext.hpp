@@ -25,7 +25,9 @@
 #include <vector>
 #include <type_traits>
 #include <functional>    // For Boyer-Moore searcher since c++17
-#include <stdexcept>     // not needed explicitly since c++20
+#include <concepts>
+#include <charconv>
+#include <optional>
 
 // About suffix of func names:
 //    s  - return std::string type
@@ -46,11 +48,7 @@ extern const std::string EMPTY_STR;
 #define lefts(s,n)   ((s).substr(0,n))
 #define leftsv(s,n)  ((s).substr(0,n))   // Since C++ 17
 
-enum class PasswordSecurityLevel {
-    LOW,
-    MEDIUM,
-    HIGH
-};
+template<typename T> concept Integer = std::is_integral_v<T>;
 
 inline std::string       rights (const std::string& src, size_t n=std::string::npos) noexcept { const size_t src_len{src.size()}; return n>=src_len? src : src.substr(src_len-n); }
 inline std::string_view  rightsv(const std::string& src, size_t n=std::string::npos) noexcept { const size_t src_len{src.size()}; return n>=src_len? std::string_view(src) : std::string_view(src.data()+src_len-n,n); }
@@ -114,8 +112,13 @@ template <class T1, class T2> inline std::string_view              lrmarksv (std
 template <class T1, class T2> inline std::vector<std::string_view> strwinsvv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos=0) noexcept;
 template <class T1, class T2> class strwinsv;
 
+// Password generating and checking:
+enum class PasswordSecurityLevel {LOW,MEDIUM,HIGH};
 std::string genPassword(PasswordSecurityLevel level=PasswordSecurityLevel::MEDIUM, size_t length=8);
-bool        chkPassword(std::string_view password, PasswordSecurityLevel level);
+bool        chkPassword(std::string_view password, PasswordSecurityLevel level, size_t min_length=4);
+
+// Convert a string_view into an integer without error message and exception:
+template<Integer T> inline bool svtoint(std::string_view sv, T& value, std::optional<T> minvalue=std::nullopt, std::optional<T> maxvalue=std::nullopt, int base=10) noexcept;
 
 //------------------------------------------------------------------------------------------------
 // My version (for compatibility)
@@ -648,5 +651,15 @@ inline std::string_view& rmcommsvrf(std::string_view& srcv, const char mark, boo
     return srcv;
 }
 
+//------------------------------------------------------------------------------------------------
+template<Integer T> inline bool svtoint(std::string_view sv, T& value, std::optional<T> minvalue, std::optional<T> maxvalue, int base) noexcept
+{
+    if( sv.empty() ) return false;
+    auto [ptr, ec] = std::from_chars(sv.data(), sv.data()+sv.size(), value, base);
+    if( ec != std::errc() || ptr != sv.data()+sv.size() )  return false;
+    if( minvalue.has_value() && value < minvalue.value() ) return false;
+    if( maxvalue.has_value() && value > maxvalue.value() ) return false;
+    return true;
+}
 //------------------------------------------------------------------------------------------------
 #endif // QQ_STREXT_HPP
