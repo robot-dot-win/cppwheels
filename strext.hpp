@@ -28,6 +28,7 @@
 #include <concepts>
 #include <charconv>
 #include <optional>
+#include <bitset>
 
 // About suffix of func names:
 //    s  - return std::string type
@@ -39,14 +40,24 @@
 //    r  - Right
 //    u  - Uppercase
 
+using TStrList = std::vector<std::string>;
+using TSvList  = std::vector<std::string_view>;
+
+using TStrPair = std::pair<std::string, std::string>;
+using TSvPair  = std::pair<std::string_view, std::string_view>;
+
 extern const std::string EMPTY_STR;
 //extern const std::string SPACE_CHARS;
 
-#define sqlquoted(s) (std::quoted(s,'\'','\''))
-#define nposs(pos)   ((pos)==std::string::npos)
-#define npossv(pos)  ((pos)==std::string_view::npos)
+#define sqlquoted(s)   (std::quoted(s,'\'','\''))
+#define nposs(pos)     ((pos)==std::string::npos)
+#define npossv(pos)    ((pos)==std::string_view::npos)
+#define str_found(pos) ((pos)!=std::string::npos)
+#define  sv_found(pos) ((pos)!=std::string_view::npos)
 #define lefts(s,n)   ((s).substr(0,n))
 #define leftsv(s,n)  ((s).substr(0,n))   // Since C++ 17
+
+#define at_list(slist,s) (std::find((slist).begin(), (slist).end(), s) != (slist).end())
 
 template<typename T> concept Integer = std::is_integral_v<T>;
 
@@ -87,14 +98,16 @@ inline std::string ucases (const std::string& src) noexcept { return ucases(std:
 inline std::string& lcaserf(std::string& str) noexcept { std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) -> char {return static_cast<char>(std::tolower(c));}); return str; }
 inline std::string& ucaserf(std::string& str) noexcept { std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) -> char {return static_cast<char>(std::toupper(c));}); return str; }
 
+enum SplitOption: uint8_t {TRIM=1<<0,NOEMPTY=1<<1};
+using SplitOptions = std::bitset<8>;
 template <class T> class  spliti;
 template <class T> class  splitiv;  // Deepseek version
-template <class T> inline std::vector<std::string>&     splits (std::vector<std::string>& dst, const std::string& src, T delimiters) noexcept;
-template <class T> inline std::vector<std::string_view> splitsv(std::string_view   src, T delimiters) noexcept;
-template <class T> inline std::vector<std::string_view> splitsv(const std::string& src, T delimiters) noexcept { return splitsv(std::string_view{src},delimiters); }
+template <class T> inline TStrList& splits (TStrList& dst, const std::string& src, T delimiters, SplitOptions opt=0) noexcept;
+template <class T> inline TSvList   splitsv(std::string_view src, T delimiters, SplitOptions opt=0) noexcept;
+template <class T> inline TSvList   splitsv(const std::string& src, T delimiters, SplitOptions opt=0) noexcept { return splitsv(std::string_view{src},delimiters,opt); }
 
-template <class T> inline std::pair<std::string_view, std::string_view> splitpairsv(std::string_view   src, T separator, bool itrim=true) noexcept;
-template <class T> inline std::pair<std::string_view, std::string_view> splitpairsv(const std::string& src, T separator, bool itrim=true) noexcept { return splitpairsv(std::string_view{src},separator,itrim); }
+template <class T> inline TSvPair splitpairsv(std::string_view   src, T separator, bool itrim=true) noexcept;
+template <class T> inline TSvPair splitpairsv(const std::string& src, T separator, bool itrim=true) noexcept { return splitpairsv(std::string_view{src},separator,itrim); }
 
 // find and replace all(not use <regex> library in small projects):
        std::string  replall(                  std::string_view   src, std::string_view    sfind, std::string_view   swith) noexcept;
@@ -108,8 +121,8 @@ inline std::string_view  rmcommsv  (std::string_view  srcv, const char mark='#',
 inline std::string_view& rmcommsvrf(std::string_view& srcv, const char mark='#', bool itrim=true) noexcept;
 
 // string_view windows scanning marked by left and right marks:
-template <class T1, class T2> inline std::string_view              lrmarksv (std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos=0) noexcept;
-template <class T1, class T2> inline std::vector<std::string_view> strwinsvv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos=0) noexcept;
+template <class T1, class T2> inline std::string_view lrmarksv (std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos=0) noexcept;
+template <class T1, class T2> inline TSvList          strwinsvv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos=0) noexcept;
 template <class T1, class T2> class strwinsv;
 
 // Password generating and checking:
@@ -118,7 +131,9 @@ std::string genPassword(PasswordSecurityLevel level=PasswordSecurityLevel::MEDIU
 bool        chkPassword(std::string_view password, PasswordSecurityLevel level, size_t min_length=4);
 
 // Convert a string_view into an integer without error message and exception:
-template<Integer T> inline bool svtoint(std::string_view sv, T& value, std::optional<T> minvalue=std::nullopt, std::optional<T> maxvalue=std::nullopt, int base=10) noexcept;
+template<Integer T> inline std::optional<T> str2int(std::string_view  sv, std::optional<T> minvalue={}, std::optional<T> maxvalue={}, int base=10) noexcept;
+template<Integer T> inline std::optional<T> str2int(const std::string& s, std::optional<T> minvalue={}, std::optional<T> maxvalue={}, int base=10) noexcept
+    { return str2int(std::string_view(s), minvalue, maxvalue, base); }
 
 //------------------------------------------------------------------------------------------------
 // My version (for compatibility)
@@ -138,7 +153,7 @@ public:
         do {
             idx.push_back(nfrom = nfind = (*ps_).find_first_of(d_, nfrom));
             nfrom++;
-        } while(!nposs(nfind));
+        } while(str_found(nfind));
         *idx.rbegin() = (*ps_).size();
         return *this;
     }
@@ -220,9 +235,9 @@ public:
 
 //------------------------------------------------------------------------------------------------
 template <class T>
-std::vector<std::string>& splits(std::vector<std::string>& dst, const std::string& src, T delimiters) noexcept
+TStrList& splits(TStrList& dst, const std::string& src, T delimiters, SplitOptions opt) noexcept
 {
-    // My version:
+    // My first version:
     // size_t nfrom, nfind;
     // dst.clear();
     // if( !src.empty() ) {
@@ -249,11 +264,14 @@ std::vector<std::string>& splits(std::vector<std::string>& dst, const std::strin
     if constexpr (std::is_same_v<std::remove_cv_t<T>, char>) {
         // 单字符分隔符优化路径
         while (true) {
-            const size_t end{src.find(delimiters, start)};
-            dst.emplace_back(data + start, (nposs(end)?src_len:end) - start);
-
-            if (nposs(end)) break;
-            start = end + 1;
+            const size_t end {src.find(delimiters, start)};
+            const bool is_end {nposs(end)};
+            const size_t len {(is_end?src_len:end) - start};
+            std::string s(data+start, len);
+            if( opt[SplitOption::TRIM-1] ) trimrf(s);
+            if( !s.empty() || !opt[SplitOption::NOEMPTY-1] ) dst.push_back(move(s));
+            if( is_end ) break;
+            ++(start=end);
         }
     } else {
         // 多字符分隔符处理
@@ -267,11 +285,14 @@ std::vector<std::string>& splits(std::vector<std::string>& dst, const std::strin
 
         // 常规处理
         while (true) {
-            const size_t end{src.find_first_of(delims, start)};
-            dst.emplace_back(data + start, (nposs(end)? src_len:end) - start);
-
-            if (nposs(end)) break;
-            start = end + 1;
+            const size_t end {src.find_first_of(delims, start)};
+            const bool is_end {nposs(end)};
+            const size_t len {(is_end?src_len:end) - start};
+            std::string s(data+start, len);
+            if( opt[SplitOption::TRIM-1] ) trimrf(s);
+            if( !s.empty() || !opt[SplitOption::NOEMPTY-1] ) dst.push_back(move(s));
+            if( is_end ) break;
+            ++(start=end);
         }
     }
 
@@ -285,10 +306,10 @@ std::vector<std::string>& splits(std::vector<std::string>& dst, const std::strin
 
 //------------------------------------------------------------------------------------------------
 template <class T>
-std::vector<std::string_view> splitsv(std::string_view src, T delimiters) noexcept
+TSvList splitsv(std::string_view src, T delimiters, SplitOptions opt) noexcept
 {
-    // My version:
-    // std::vector<std::string_view> dst;
+    // My first version:
+    // TSvList dst;
     // size_t nfrom, nfind;
     // if( !src.empty() ) {
     //     for( nfrom=0; !nposs(nfind = src.find_first_of(delimiters, nfrom)); nfrom=nfind+1 )
@@ -298,37 +319,38 @@ std::vector<std::string_view> splitsv(std::string_view src, T delimiters) noexce
     // return dst;
 
     // Deepseek optimized version:
-    std::vector<std::string_view> dst;
+    TSvList dst;
     if (src.empty()) return dst;
 
+    const char* const data{src.data()};
     const size_t src_len {src.size()};
-    size_t start_pos {};
+    size_t start {};
 
     // 类型分发优化
     if constexpr (std::is_same_v<std::remove_cv_t<T>, char>) {
         // 单字符分隔符优化路径
         while (true) {
-            const size_t found {src.find(delimiters, start_pos)};
-            const bool is_end  {npossv(found)};
-            const size_t substr_len {(is_end? src_len:found) - start_pos};
-
-            dst.emplace_back(src.data() + start_pos, substr_len);
-
-            if (is_end) break;
-            start_pos = found + 1;
+            const size_t end {src.find(delimiters, start)};
+            const bool is_end  {npossv(end)};
+            const size_t len {(is_end? src_len:end) - start};
+            std::string_view sv(data+start, len);
+            if( opt[SplitOption::TRIM-1] ) trimsvrf(sv);
+            if( !sv.empty() || !opt[SplitOption::NOEMPTY-1] ) dst.push_back(sv);
+            if( is_end ) break;
+            ++(start=end);
         }
     } else {
         // 通用分隔符处理
         const std::string_view delims(delimiters);
         while (true) {
-            const size_t found {src.find_first_of(delims, start_pos)};
-            const bool is_end  {npossv(found)};
-            const size_t substr_len {(is_end? src_len:found) - start_pos};
-
-            dst.emplace_back(src.data() + start_pos, substr_len);
-
-            if (is_end) break;
-            start_pos = found + 1;
+            const size_t end {src.find_first_of(delims, start)};
+            const bool is_end  {npossv(end)};
+            const size_t len {(is_end? src_len:end) - start};
+            std::string_view sv(data+start, len);
+            if( opt[SplitOption::TRIM-1] ) trimsvrf(sv);
+            if( !sv.empty() || !opt[SplitOption::NOEMPTY-1] ) dst.push_back(sv);
+            if( is_end ) break;
+            ++(start=end);
         }
     }
 
@@ -586,10 +608,10 @@ lrmarksv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos) noexc
 
 //------------------------------------------------------------------------------------------------
 // By Deepseek
-template <class T1, class T2> inline std::vector<std::string_view>
+template <class T1, class T2> TSvList
 strwinsvv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos) noexcept
 {
-    std::vector<std::string_view> results;
+    TSvList results;
     strwinsv<T1, T2> scanner(sv, leftmark, rightmark, begin_pos);
     if constexpr (std::is_same_v<std::remove_cv_t<T1>, char> && std::is_same_v<std::remove_cv_t<T2>, char>)
         results.reserve(sv.size() / 8);  // 预分配内存优化（按经验值）：每8字符一个匹配
@@ -602,7 +624,7 @@ strwinsvv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos) noex
 // Caution: The separator is either a character or a STRING. Eg.
 //      splitpairsv("key=value", '=');        // {"key", "value"}
 //      splitpairsv("key=>value", "=>");      // {"key", "value"}
-template <class T> inline std::pair<std::string_view, std::string_view>
+template <class T> TSvPair
 splitpairsv(std::string_view src, T separator, bool itrim) noexcept
 {
     size_t pos {std::string_view::npos};
@@ -629,7 +651,7 @@ splitpairsv(std::string_view src, T separator, bool itrim) noexcept
 //------------------------------------------------------------------------------------------------
 // If the first char is mark, the whole string is comment, otherwise the comment is from the most
 // right mark char to the end of the string.
-inline std::string_view rmcommsv(std::string_view srcv, const char mark, bool itrim) noexcept
+std::string_view rmcommsv(std::string_view srcv, const char mark, bool itrim) noexcept
 {
     std::string_view sv = itrim? trimsv(srcv) : srcv;
     if( sv.empty() || sv[0]==mark ) return {};
@@ -639,7 +661,7 @@ inline std::string_view rmcommsv(std::string_view srcv, const char mark, bool it
 }
 
 //------------------------------------------------------------------------------------------------
-inline std::string_view& rmcommsvrf(std::string_view& srcv, const char mark, bool itrim) noexcept
+std::string_view& rmcommsvrf(std::string_view& srcv, const char mark, bool itrim) noexcept
 {
     if( itrim ) trimsvrf(srcv);
     if( srcv.empty() || srcv[0]==mark ) return srcv={};
@@ -652,14 +674,17 @@ inline std::string_view& rmcommsvrf(std::string_view& srcv, const char mark, boo
 }
 
 //------------------------------------------------------------------------------------------------
-template<Integer T> inline bool svtoint(std::string_view sv, T& value, std::optional<T> minvalue, std::optional<T> maxvalue, int base) noexcept
+template<Integer T> std::optional<T> str2int(std::string_view sv, std::optional<T> minvalue, std::optional<T> maxvalue, int base) noexcept
 {
-    if( sv.empty() ) return false;
-    auto [ptr, ec] = std::from_chars(sv.data(), sv.data()+sv.size(), value, base);
-    if( ec != std::errc() || ptr != sv.data()+sv.size() )  return false;
-    if( minvalue.has_value() && value < minvalue.value() ) return false;
-    if( maxvalue.has_value() && value > maxvalue.value() ) return false;
-    return true;
+    if (sv.empty()) return std::nullopt;
+
+    T value{};
+    if( auto [ptr, ec] = std::from_chars(sv.data(), sv.data()+sv.size(), value, base);
+       (ec != std::errc() || ptr != sv.data() +sv.size())
+    || (minvalue.has_value() && value < minvalue.value())
+    || (maxvalue.has_value() && value > maxvalue.value()) ) return std::nullopt;
+
+    return value;
 }
 //------------------------------------------------------------------------------------------------
 #endif // QQ_STREXT_HPP

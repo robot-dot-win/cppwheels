@@ -72,14 +72,14 @@ bool cfgfile::reload()
             return false;
         }
 
-        const pair key_value {splitpairsv(linesv,separator)};
+        const auto& [key, value] {splitpairsv(linesv,separator)};
 
-        if( key_value.first.empty() ) {
+        if( key.empty() ) {
             errmsg = "Empty key in option: "s + line;
             return false;
         }
 
-        cfg[current_section][std::string(key_value.first)] = key_value.second;
+        cfg[current_section][string(key)] = value;
     }
 
     return true;
@@ -105,13 +105,13 @@ bool cfgfile::save()
     }
 
     // If value contains '#', add a comment at the end automatically
-    constexpr std::string_view auto_comment = "    # value containing number sign(s) must have a comment at the line"sv;
+    constexpr string_view auto_comment = "    # value containing number sign(s) must have a comment at the line"sv;
 
     for (const auto& section_pair : cfg) {
         ofs << '[' << section_pair.first << ']' << endl;
         for (const auto& option_pair : section_pair.second) {
             ofs << option_pair.first << separator << option_pair.second;
-            if( option_pair.second.find('#') != std::string::npos ) ofs << auto_comment;
+            if( str_found(option_pair.second.find('#')) ) ofs << auto_comment;
             ofs << endl;
         }
         ofs << endl;
