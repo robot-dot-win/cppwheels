@@ -16,8 +16,7 @@
 //  along with this program. If not, see <https://www.gnu.org/licenses/>.
 //------------------------------------------------------------------------
 
-#ifndef QQ_STREXT_HPP
-#define QQ_STREXT_HPP
+#pragma once
 
 #include <string>
 #include <string_view>
@@ -29,6 +28,8 @@
 #include <charconv>
 #include <optional>
 #include <bitset>
+#include <unordered_set>
+#include <stdexcept>
 
 // About suffix of func names:
 //    s  - return std::string type
@@ -40,14 +41,17 @@
 //    r  - Right
 //    u  - Uppercase
 
-using TStrList = std::vector<std::string>;
-using TSvList  = std::vector<std::string_view>;
+using TStrVec = std::vector<std::string>;
+using TSvVec  = std::vector<std::string_view>;
+
+using TStrUoSet  = std::unordered_set<std::string>;
+using TStrUoMSet = std::unordered_multiset<std::string>;
 
 using TStrPair = std::pair<std::string, std::string>;
 using TSvPair  = std::pair<std::string_view, std::string_view>;
 
 extern const std::string EMPTY_STR;
-//extern const std::string SPACE_CHARS;
+extern const std::string SPACE_CHARS;
 
 #define sqlquoted(s)   (std::quoted(s,'\'','\''))
 #define nposs(pos)     ((pos)==std::string::npos)
@@ -57,11 +61,15 @@ extern const std::string EMPTY_STR;
 #define lefts(s,n)   ((s).substr(0,n))
 #define leftsv(s,n)  ((s).substr(0,n))   // Since C++ 17
 
-#define at_list(slist,s) (std::find((slist).begin(), (slist).end(), s) != (slist).end())
+#ifndef QQ_CONCEPT_Integer
+#define QQ_CONCEPT_Integer
+template <typename T> concept Integer = std::is_integral_v<T>;
+#endif
 
-template<typename T> concept Integer = std::is_integral_v<T>;
-
+//------------------------------------------------------------------------------------------------
+inline std::string       rights (std::string_view sv,    size_t n=std::string_view::npos) noexcept { const size_t src_len{sv.size()}; return n>=src_len? std::string(sv) : std::string(sv.substr(src_len-n)); }
 inline std::string       rights (const std::string& src, size_t n=std::string::npos) noexcept { const size_t src_len{src.size()}; return n>=src_len? src : src.substr(src_len-n); }
+inline std::string_view  rightsv(std::string_view sv,    size_t n=std::string_view::npos) noexcept { const size_t src_len{sv.size()}; return n>=src_len? sv : sv.substr(src_len-n); }
 inline std::string_view  rightsv(const std::string& src, size_t n=std::string::npos) noexcept { const size_t src_len{src.size()}; return n>=src_len? std::string_view(src) : std::string_view(src.data()+src_len-n,n); }
 
 inline std::string       ltrims (std::string_view sv)    noexcept;
@@ -102,9 +110,9 @@ enum SplitOption: uint8_t {TRIM=1<<0,NOEMPTY=1<<1};
 using SplitOptions = std::bitset<8>;
 template <class T> class  spliti;
 template <class T> class  splitiv;  // Deepseek version
-template <class T> inline TStrList& splits (TStrList& dst, const std::string& src, T delimiters, SplitOptions opt=0) noexcept;
-template <class T> inline TSvList   splitsv(std::string_view src, T delimiters, SplitOptions opt=0) noexcept;
-template <class T> inline TSvList   splitsv(const std::string& src, T delimiters, SplitOptions opt=0) noexcept { return splitsv(std::string_view{src},delimiters,opt); }
+template <class T> inline TStrVec& splits (TStrVec& dst, const std::string& src, T delimiters, SplitOptions opt=0) noexcept;
+template <class T> inline TSvVec   splitsv(std::string_view src, T delimiters, SplitOptions opt=0) noexcept;
+template <class T> inline TSvVec   splitsv(const std::string& src, T delimiters, SplitOptions opt=0) noexcept { return splitsv(std::string_view{src},delimiters,opt); }
 
 template <class T> inline TSvPair splitpairsv(std::string_view   src, T separator, bool itrim=true) noexcept;
 template <class T> inline TSvPair splitpairsv(const std::string& src, T separator, bool itrim=true) noexcept { return splitpairsv(std::string_view{src},separator,itrim); }
@@ -122,7 +130,7 @@ inline std::string_view& rmcommsvrf(std::string_view& srcv, const char mark='#',
 
 // string_view windows scanning marked by left and right marks:
 template <class T1, class T2> inline std::string_view lrmarksv (std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos=0) noexcept;
-template <class T1, class T2> inline TSvList          strwinsvv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos=0) noexcept;
+template <class T1, class T2> inline TSvVec           strwinsvv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos=0) noexcept;
 template <class T1, class T2> class strwinsv;
 
 // Password generating and checking:
@@ -235,7 +243,7 @@ public:
 
 //------------------------------------------------------------------------------------------------
 template <class T>
-TStrList& splits(TStrList& dst, const std::string& src, T delimiters, SplitOptions opt) noexcept
+TStrVec& splits(TStrVec& dst, const std::string& src, T delimiters, SplitOptions opt) noexcept
 {
     // My first version:
     // size_t nfrom, nfind;
@@ -306,10 +314,10 @@ TStrList& splits(TStrList& dst, const std::string& src, T delimiters, SplitOptio
 
 //------------------------------------------------------------------------------------------------
 template <class T>
-TSvList splitsv(std::string_view src, T delimiters, SplitOptions opt) noexcept
+TSvVec splitsv(std::string_view src, T delimiters, SplitOptions opt) noexcept
 {
     // My first version:
-    // TSvList dst;
+    // TSvVec dst;
     // size_t nfrom, nfind;
     // if( !src.empty() ) {
     //     for( nfrom=0; !nposs(nfind = src.find_first_of(delimiters, nfrom)); nfrom=nfind+1 )
@@ -319,7 +327,7 @@ TSvList splitsv(std::string_view src, T delimiters, SplitOptions opt) noexcept
     // return dst;
 
     // Deepseek optimized version:
-    TSvList dst;
+    TSvVec dst;
     if (src.empty()) return dst;
 
     const char* const data{src.data()};
@@ -608,10 +616,10 @@ lrmarksv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos) noexc
 
 //------------------------------------------------------------------------------------------------
 // By Deepseek
-template <class T1, class T2> TSvList
+template <class T1, class T2> TSvVec
 strwinsvv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos) noexcept
 {
-    TSvList results;
+    TSvVec results;
     strwinsv<T1, T2> scanner(sv, leftmark, rightmark, begin_pos);
     if constexpr (std::is_same_v<std::remove_cv_t<T1>, char> && std::is_same_v<std::remove_cv_t<T2>, char>)
         results.reserve(sv.size() / 8);  // 预分配内存优化（按经验值）：每8字符一个匹配
@@ -687,4 +695,3 @@ template<Integer T> std::optional<T> str2int(std::string_view sv, std::optional<
     return value;
 }
 //------------------------------------------------------------------------------------------------
-#endif // QQ_STREXT_HPP

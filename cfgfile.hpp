@@ -16,8 +16,7 @@
 //  along with this program. If not, see <https://www.gnu.org/licenses/>.
 //------------------------------------------------------------------------
 
-#ifndef QQ_CFGFILE_HPP
-#define QQ_CFGFILE_HPP
+#pragma once
 
 #include <string>
 #include <map>
@@ -35,7 +34,7 @@ public:
     std::map<std::string, std::map<std::string, std::string>> cfg;
 
     // After initializing an instance, check errmsg to judge if error occurs.
-    cfgfile(const std::string sfile="", cfgopenmode mode=cfgopenmode::r, const char sep='=')
+    cfgfile(const std::string sfile={}, cfgopenmode mode=cfgopenmode::r, const char sep='=')
         : srcfile(sfile), readonly(mode==cfgopenmode::r), separator(sep)
         { reload(); }
 
@@ -44,8 +43,6 @@ public:
     bool reload();
     bool save();
 };
-
-#endif // QQ_CFGFILE_HPP
 
 //Configuration File Syntax
 //=====================================

@@ -16,12 +16,12 @@
 //  along with this program. If not, see <https://www.gnu.org/licenses/>.
 //------------------------------------------------------------------------
 
-#ifndef QQ_IP4_HPP
-#define QQ_IP4_HPP
+#pragma once
 
 #include <string>
 #include <stdexcept>
 #include <cstdint>
+#include <algorithm>
 #include <compare>  // Since C++ 20
 #include <bit>      // Since C++ 20
 
@@ -120,6 +120,4 @@ public:
         return true;
     }
 };
-
 //-------------------------------------------------------------------------------------------
-#endif // QQ_IP4_HPP

@@ -20,8 +20,10 @@
 
 #include "strext.hpp"
 
+using namespace std::string_literals;
+
 const std::string EMPTY_STR{};
-//const std::string SPACE_CHARS{" \t\n\r\f\v"};
+const std::string SPACE_CHARS{" \t\n\r\f\v"s};
 
 //----------------------------------------------------------------------------------------------------
 // My version

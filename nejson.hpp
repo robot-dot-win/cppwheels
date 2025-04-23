@@ -17,8 +17,7 @@
 //  along with this program. If not, see <https://www.gnu.org/licenses/>.
 //------------------------------------------------------------------------
 
-#ifndef QQ_NEJSON_HPP
-#define QQ_NEJSON_HPP
+#pragma once
 
 #include <string>
 #include <utility>
@@ -110,5 +109,3 @@ bool get_to(const json& j, ValueType& v) noexcept
 
 //------------------------------------------------------------------------------------------------
 } // namespace nejson
-
-#endif // QQ_NEJSON_HPP
