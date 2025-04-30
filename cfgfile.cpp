@@ -20,7 +20,6 @@
 #include <fstream>
 #include <filesystem>
 #include "cfgfile.hpp"
-#include "strext.hpp"
 
 using namespace std;
 

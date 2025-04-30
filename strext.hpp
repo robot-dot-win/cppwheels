@@ -23,13 +23,15 @@
 #include <algorithm>
 #include <vector>
 #include <type_traits>
-#include <functional>    // For Boyer-Moore searcher since c++17
+#include <functional>
 #include <concepts>
 #include <charconv>
 #include <optional>
 #include <bitset>
 #include <unordered_set>
 #include <stdexcept>
+#include <map>
+#include <memory>
 
 // About suffix of func names:
 //    s  - return std::string type
@@ -49,6 +51,9 @@ using TStrUoMSet = std::unordered_multiset<std::string>;
 
 using TStrPair = std::pair<std::string, std::string>;
 using TSvPair  = std::pair<std::string_view, std::string_view>;
+
+using TStrMap  = std::map<std::string, std::string>;
+using TStrMMap = std::multimap<std::string, std::string>;
 
 extern const std::string EMPTY_STR;
 extern const std::string SPACE_CHARS;

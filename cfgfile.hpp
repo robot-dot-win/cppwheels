@@ -18,8 +18,7 @@
 
 #pragma once
 
-#include <string>
-#include <map>
+#include "strext.hpp"
 
 enum class cfgopenmode {r, rw};
 
@@ -31,7 +30,7 @@ protected:
     const char separator;
 public:
     std::string errmsg;
-    std::map<std::string, std::map<std::string, std::string>> cfg;
+    std::map<std::string, TStrMap> cfg;
 
     // After initializing an instance, check errmsg to judge if error occurs.
     cfgfile(const std::string sfile={}, cfgopenmode mode=cfgopenmode::r, const char sep='=')

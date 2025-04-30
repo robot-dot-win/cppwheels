@@ -17,7 +17,7 @@
 //------------------------------------------------------------------------
 
 // inContainer      - to judge if an element in a container
-// subContainer     - to subtract the elements(or its keys) from one container contained in another container
+// subContainer     - to subtract the elements(or its keys) from one container contained in another
 
 #pragma once
 
