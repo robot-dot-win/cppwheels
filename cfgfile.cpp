@@ -44,7 +44,7 @@ bool cfgfile::reload()
     }
 
     ifstream ifs(srcfile);
-    if (!ifs.is_open()) {
+    if ( !ifs ) {
         errmsg = "Failed to open file: "s + srcfile;
         return false;
     }

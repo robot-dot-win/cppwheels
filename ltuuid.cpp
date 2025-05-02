@@ -30,14 +30,14 @@ std::string uuid::str() const
 
     auto fill = [&](auto val, size_t start, size_t len) {
         for (size_t i = 0; i < len; ++i)
-            buf[start + i] = hex[(val >> (4 * (15 - i))) & 0xF];
+            buf[start + i] = hex[(val >> (4 * (len - 1 - i))) & 0xF];
     };
 
-    fill(ab, 0, 8);        buf[8]   = '-';
-    fill(ab >> 16, 9, 4);  buf[13] = '-';
-    fill(ab >> 32, 14, 4); buf[18] = '-';
-    fill(cd, 19, 4);       buf[23] = '-';
-    fill(cd >> 16, 24, 12);
+    fill(ab >> 32, 0, 8);            buf[8]  = '-';
+    fill((ab >> 16) & 0xFFFF, 9, 4); buf[13] = '-';
+    fill(ab & 0xFFFF, 14, 4);        buf[18] = '-';
+    fill(cd >> 48, 19, 4);           buf[23] = '-';
+    fill(cd & 0xFFFFFFFFFFFF, 24, 12);
 
     return std::string(buf.data(), buf.size());
 }
@@ -51,41 +51,17 @@ uuid rebuild(std::string_view uustr)
     if (uustr[8] != '-' || uustr[13] != '-' || uustr[18] != '-' || uustr[23] != '-')
         throw std::runtime_error("Invalid UUID std::string format");
 
-    uint64_t ab_val = 0;
-    auto res = std::from_chars(uustr.data(), uustr.data() + 8, ab_val, 16);
-    if (res.ec != std::errc{}) throw std::runtime_error("Invalid hexadecimal characters in UUID std::string (part 1)");
+    uint64_t parts[][2] { {8,0},{4,0},{4,0},{4,0},{12,0} };   // [length][value]
 
-    res = std::from_chars(uustr.data() + 9, uustr.data() + 13, ab_val, 16);
-    if (res.ec != std::errc{}) throw std::runtime_error("Invalid hexadecimal characters in UUID std::string (part 2)");
+    const char *p = uustr.data();
+    for( int i=0; i<5; ++i, ++p ) {
+        if( auto res = std::from_chars(p, p+parts[i][0], parts[i][1], 16); res.ec!=std::errc{} || res.ptr!=p+parts[i][0] )
+            throw std::runtime_error("Invalid hexadecimal characters in UUID string (part "+std::to_string(i+1)+")");
+        p += parts[i][0];
+    }
 
-    res = std::from_chars(uustr.data() + 14, uustr.data() + 18, ab_val, 16);
-    if (res.ec != std::errc{}) throw std::runtime_error("Invalid hexadecimal characters in UUID std::string (part 3)");
-
-    uint64_t cd_val = 0;
-    res = std::from_chars(uustr.data() + 19, uustr.data() + 23, cd_val, 16);
-    if (res.ec != std::errc{}) throw std::runtime_error("Invalid hexadecimal characters in UUID std::string (part 4)");
-
-    res = std::from_chars(uustr.data() + 24, uustr.data() + 36, cd_val, 16);
-    if (res.ec != std::errc{}) throw std::runtime_error("Invalid hexadecimal characters in UUID std::string (part 5)");
-
-    // Need to combine the parsed parts correctly into ab_val and cd_val
-    uint64_t ab_part1, ab_part2, ab_part3, cd_part1, cd_part2;
-
-    res = std::from_chars(uustr.data(), uustr.data() + 8, ab_part1, 16);
-    if (res.ec != std::errc{}) throw std::runtime_error("Invalid hexadecimal characters in UUID std::string (part 1)");
-    res = std::from_chars(uustr.data() + 9, uustr.data() + 13, ab_part2, 16);
-    if (res.ec != std::errc{}) throw std::runtime_error("Invalid hexadecimal characters in UUID std::string (part 2)");
-    res = std::from_chars(uustr.data() + 14, uustr.data() + 18, ab_part3, 16);
-    if (res.ec != std::errc{}) throw std::runtime_error("Invalid hexadecimal characters in UUID std::string (part 3)");
-    res = std::from_chars(uustr.data() + 19, uustr.data() + 23, cd_part1, 16);
-    if (res.ec != std::errc{}) throw std::runtime_error("Invalid hexadecimal characters in UUID std::string (part 4)");
-    res = std::from_chars(uustr.data() + 24, uustr.data() + 36, cd_part2, 16);
-    if (res.ec != std::errc{}) throw std::runtime_error("Invalid hexadecimal characters in UUID std::string (part 5)");
-
-    ab_val = (ab_part1 << 32) | (ab_part2 << 16) | ab_part3; // Correct the bit shifts
-    cd_val = (cd_part1 << 48) | cd_part2;                    // Correct the bit shifts
-
-    return {ab_val, cd_val};
+    return { (parts[0][1] << 32) | (parts[1][1] << 16) | parts[2][1],
+             (parts[3][1] << 48) | parts[4][1] };
 }
 //------------------------------------------------------------------------
 } // namespace ltuuid

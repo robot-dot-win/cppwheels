@@ -113,14 +113,14 @@ inline std::string& ucaserf(std::string& str) noexcept { std::transform(str.begi
 
 enum SplitOption: uint8_t {TRIM=1<<0,NOEMPTY=1<<1};
 using SplitOptions = std::bitset<8>;
-template <class T> class  spliti;
-template <class T> class  splitiv;  // Deepseek version
-template <class T> inline TStrVec& splits (TStrVec& dst, const std::string& src, T delimiters, SplitOptions opt=0) noexcept;
-template <class T> inline TSvVec   splitsv(std::string_view src, T delimiters, SplitOptions opt=0) noexcept;
-template <class T> inline TSvVec   splitsv(const std::string& src, T delimiters, SplitOptions opt=0) noexcept { return splitsv(std::string_view{src},delimiters,opt); }
+template <typename T> class  spliti;
+template <typename T> class  splitiv;  // Deepseek version
+template <typename T> inline TStrVec& splits (TStrVec& dst, const std::string& src, T delimiters, SplitOptions opt=0) noexcept;
+template <typename T> inline TSvVec   splitsv(std::string_view src, T delimiters, SplitOptions opt=0) noexcept;
+template <typename T> inline TSvVec   splitsv(const std::string& src, T delimiters, SplitOptions opt=0) noexcept { return splitsv(std::string_view{src},delimiters,opt); }
 
-template <class T> inline TSvPair splitpairsv(std::string_view   src, T separator, bool itrim=true) noexcept;
-template <class T> inline TSvPair splitpairsv(const std::string& src, T separator, bool itrim=true) noexcept { return splitpairsv(std::string_view{src},separator,itrim); }
+template <typename T> inline TSvPair splitpairsv(std::string_view   src, T separator, bool itrim=true) noexcept;
+template <typename T> inline TSvPair splitpairsv(const std::string& src, T separator, bool itrim=true) noexcept { return splitpairsv(std::string_view{src},separator,itrim); }
 
 // find and replace all(not use <regex> library in small projects):
        std::string  replall(                  std::string_view   src, std::string_view    sfind, std::string_view   swith) noexcept;
@@ -134,9 +134,9 @@ inline std::string_view  rmcommsv  (std::string_view  srcv, const char mark='#',
 inline std::string_view& rmcommsvrf(std::string_view& srcv, const char mark='#', bool itrim=true) noexcept;
 
 // string_view windows scanning marked by left and right marks:
-template <class T1, class T2> inline std::string_view lrmarksv (std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos=0) noexcept;
-template <class T1, class T2> inline TSvVec           strwinsvv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos=0) noexcept;
-template <class T1, class T2> class strwinsv;
+template <typename T1, typename T2> inline std::string_view lrmarksv (std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos=0) noexcept;
+template <typename T1, typename T2> inline TSvVec           strwinsvv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos=0) noexcept;
+template <typename T1, typename T2> class strwinsv;
 
 // Password generating and checking:
 enum class PasswordSecurityLevel {LOW,MEDIUM,HIGH};
@@ -150,7 +150,7 @@ template<Integer T> inline std::optional<T> str2int(const std::string& s, std::o
 
 //------------------------------------------------------------------------------------------------
 // My version (for compatibility)
-template <class T> class spliti {
+template <typename T> class spliti {
 protected:
     T d_;                       // delimiter(s)
     const std::string *ps_;     // hold the string to split
@@ -180,7 +180,7 @@ public:
 
 //------------------------------------------------------------------------------------------------
 // Deepseek version
-template <class T> class splitiv {
+template <typename T> class splitiv {
 private:
     T delimiters_;
     std::string_view sv_;
@@ -235,7 +235,7 @@ public:
     }
 
     // 高效范围访问
-    template <class F>
+    template <typename F>
     void for_each(F&& callback) const {
         size_t start{};
         sv_.find_first_of(delimiters_, 0, [&](size_t found) {
@@ -247,7 +247,7 @@ public:
 };
 
 //------------------------------------------------------------------------------------------------
-template <class T>
+template <typename T>
 TStrVec& splits(TStrVec& dst, const std::string& src, T delimiters, SplitOptions opt) noexcept
 {
     // My first version:
@@ -318,7 +318,7 @@ TStrVec& splits(TStrVec& dst, const std::string& src, T delimiters, SplitOptions
 }
 
 //------------------------------------------------------------------------------------------------
-template <class T>
+template <typename T>
 TSvVec splitsv(std::string_view src, T delimiters, SplitOptions opt) noexcept
 {
     // My first version:
@@ -548,7 +548,7 @@ std::string_view& rtrimsvrf(std::string_view& sv) noexcept
 }
 
 //------------------------------------------------------------------------------------------------
-template <class T1, class T2> class strwinsv {
+template <typename T1, typename T2> class strwinsv {
 private:
     std::string_view src;
     T1 leftmark;
@@ -594,7 +594,7 @@ public:
 };
 
 //------------------------------------------------------------------------------------------------
-template <class T1, class T2> std::string_view
+template <typename T1, typename T2> std::string_view
 lrmarksv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos) noexcept
 {
     auto findmark = [&sv](auto mark, size_t pos) {
@@ -621,7 +621,7 @@ lrmarksv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos) noexc
 
 //------------------------------------------------------------------------------------------------
 // By Deepseek
-template <class T1, class T2> TSvVec
+template <typename T1, typename T2> TSvVec
 strwinsvv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos) noexcept
 {
     TSvVec results;
@@ -637,7 +637,7 @@ strwinsvv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos) noex
 // Caution: The separator is either a character or a STRING. Eg.
 //      splitpairsv("key=value", '=');        // {"key", "value"}
 //      splitpairsv("key=>value", "=>");      // {"key", "value"}
-template <class T> TSvPair
+template <typename T> TSvPair
 splitpairsv(std::string_view src, T separator, bool itrim) noexcept
 {
     size_t pos {std::string_view::npos};
@@ -693,7 +693,7 @@ template<Integer T> std::optional<T> str2int(std::string_view sv, std::optional<
 
     T value{};
     if( auto [ptr, ec] = std::from_chars(sv.data(), sv.data()+sv.size(), value, base);
-       (ec != std::errc() || ptr != sv.data() +sv.size())
+       (ec != std::errc{} || ptr != sv.data() +sv.size())
     || (minvalue.has_value() && value < minvalue.value())
     || (maxvalue.has_value() && value > maxvalue.value()) ) return std::nullopt;
 

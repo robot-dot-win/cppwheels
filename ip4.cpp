@@ -37,7 +37,7 @@ ip4::ip4(std::string_view sv) {
         uint32_t byte;
         auto [ptr, ec] = std::from_chars(part.data(), part.data() + part.size(), byte);
 
-        if (ec != std::errc() || ptr != part.data() + part.size() || byte > 255)
+        if (ec != std::errc{} || ptr != part.data() + part.size() || byte > 255)
             throw std::invalid_argument("Invalid IPv4 component");
 
         (*this)[idx] = static_cast<uint8_t>(byte);
@@ -68,7 +68,7 @@ ip4net::ip4net(std::string_view ipsv) {
     } else {
         uint32_t bits;
         auto [ptr, ec] = std::from_chars(mask_sv.data(), mask_sv.data() + mask_sv.size(), bits);
-        if (ec != std::errc() || bits > 32)
+        if (ec != std::errc{} || bits > 32)
             throw std::invalid_argument("Invalid IPv4 mask bits");
         mask_ = bits;
     }
