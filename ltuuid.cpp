@@ -42,26 +42,27 @@ std::string uuid::str() const
     return std::string(buf.data(), buf.size());
 }
 //------------------------------------------------------------------------
-// Rebuild UUID from a std::string
+// Rebuild UUID from a std::string_view
 uuid rebuild(std::string_view uustr)
 {
     if (uustr.size() != 36)
-        throw std::runtime_error("Invalid UUID std::string length");
+        throw std::runtime_error("Invalid UUID string length");
 
     if (uustr[8] != '-' || uustr[13] != '-' || uustr[18] != '-' || uustr[23] != '-')
-        throw std::runtime_error("Invalid UUID std::string format");
+        throw std::runtime_error("Invalid UUID string format");
 
-    uint64_t parts[][2] { {8,0},{4,0},{4,0},{4,0},{12,0} };   // [length][value]
+    uint64_t five_parts[5] {};
+    size_t len[] { 8,4,4,4,12 };
 
     const char *p = uustr.data();
     for( int i=0; i<5; ++i, ++p ) {
-        if( auto res = std::from_chars(p, p+parts[i][0], parts[i][1], 16); res.ec!=std::errc{} || res.ptr!=p+parts[i][0] )
+        if( auto [ptr,ec] = std::from_chars(p, p+len[i], five_parts[i], 16); ec!=std::errc{} || ptr!=p+len[i] )
             throw std::runtime_error("Invalid hexadecimal characters in UUID string (part "+std::to_string(i+1)+")");
-        p += parts[i][0];
+        p += len[i];
     }
 
-    return { (parts[0][1] << 32) | (parts[1][1] << 16) | parts[2][1],
-             (parts[3][1] << 48) | parts[4][1] };
+    return { (five_parts[0] << 32) | (five_parts[1] << 16) | five_parts[2],
+             (five_parts[3] << 48) |  five_parts[4] };
 }
 //------------------------------------------------------------------------
 } // namespace ltuuid

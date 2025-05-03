@@ -148,6 +148,9 @@ template<Integer T> inline std::optional<T> str2int(std::string_view  sv, std::o
 template<Integer T> inline std::optional<T> str2int(const std::string& s, std::optional<T> minvalue={}, std::optional<T> maxvalue={}, int base=10) noexcept
     { return str2int(std::string_view(s), minvalue, maxvalue, base); }
 
+template<Integer T> inline bool from_c_succ(const char* first, const char* last, T& value, int base=10) noexcept
+    { auto [ptr,ec] = std::from_chars(first, last, value, base); return ec==std::errc{} && ptr==last; }
+
 //------------------------------------------------------------------------------------------------
 // My version (for compatibility)
 template <typename T> class spliti {
@@ -692,10 +695,10 @@ template<Integer T> std::optional<T> str2int(std::string_view sv, std::optional<
     if (sv.empty()) return std::nullopt;
 
     T value{};
-    if( auto [ptr, ec] = std::from_chars(sv.data(), sv.data()+sv.size(), value, base);
-       (ec != std::errc{} || ptr != sv.data() +sv.size())
-    || (minvalue.has_value() && value < minvalue.value())
-    || (maxvalue.has_value() && value > maxvalue.value()) ) return std::nullopt;
+    if( !from_c_succ(sv.data(), sv.data()+sv.size(), value, base)
+        || (minvalue.has_value() && value < minvalue.value())
+        || (maxvalue.has_value() && value > maxvalue.value())
+    ) return std::nullopt;
 
     return value;
 }
