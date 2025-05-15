@@ -17,7 +17,9 @@
 //------------------------------------------------------------------------
 
 // inContainer      - to judge if an element in a container
-// subContainer     - to subtract the elements(or its keys) from one container contained in another
+// subContainer     - to subtract the elements(or its keys) from one container contained in another (Difference or Except)
+// uniContainer     - to add  all elements in   one container into another (union)
+// mvtoContainer    - to move all elements from one container into another
 
 #pragma once
 
@@ -33,7 +35,8 @@
 #include <algorithm>
 #include <cmath>
 #include <concepts>
-#include <unordered_set>
+#include <ranges>
+#include <utility>
 
 // ==================== Concepts ====================
 
@@ -122,6 +125,33 @@ template <typename Key, typename T, typename... Args>
 struct key_extractor<std::unordered_multimap<Key, T, Args...>> {
     static const Key& get(const typename std::unordered_multimap<Key, T, Args...>::value_type& elem) { return elem.first; }
 };
+
+// Concept to check if a type has a nested ::value_type
+template <typename C>
+concept HasValueType = requires { typename C::value_type; };
+
+// Concept to check if a container is clearable (has a clear() method)
+template <typename C>
+concept Clearable = requires(C& c) { c.clear(); };
+
+// Concept to check if ContainerA can have elements inserted/pushed_back (movably)
+template <typename C, typename ElementType = typename C::value_type>
+concept MovableElementSink =
+    requires(C& c, ElementType&& e) { c.push_back(std::move(e)); } ||
+    requires(C& c, ElementType&& e) { c.insert(std::move(e)); };
+
+// Concept to check if ContainerA has a reserve() method and a size() method
+template <typename C>
+concept Reservable = requires(C& c, typename C::size_type n) {
+    { c.reserve(n) };
+    { c.size() } -> std::convertible_to<typename C::size_type>;
+};
+
+// Concept to check if the container can have elements inserted/pushed_back by copying
+template <typename C, typename ElementType = typename C::value_type>
+concept CopyableElementSink =
+    requires(C& c, const ElementType& e) { c.push_back(e); } || // For vector-like containers, taking const ref
+    requires(C& c, const ElementType& e) { c.insert(e); };   // For set-like containers, taking const ref
 
 // ==================== Cost Calculation ====================
 template <typename Container>
@@ -254,6 +284,83 @@ ContainerA& subContainer(ContainerA& a, const ContainerB& b) {
         }
         break; }
     }
+
+    return a;
+}
+
+//------------------------------------------------------------------------------------------------
+// mvtoContainer - to move all elements from container B into A
+template <typename ContainerA, typename ContainerB>
+requires HasValueType<ContainerA> &&
+         HasValueType<ContainerB> &&
+         std::same_as<typename ContainerA::value_type, typename ContainerB::value_type> &&
+         std::is_move_constructible_v<typename ContainerA::value_type> &&
+         MovableElementSink<ContainerA, typename ContainerA::value_type> &&
+         std::ranges::input_range<ContainerB> &&
+         Clearable<ContainerB>
+ContainerA& mvtoContainer(ContainerA& a, ContainerB& b)
+{
+    if constexpr (std::is_same_v<ContainerA, ContainerB>)
+        if (a.empty()) { a = std::move(b); b.clear(); return a; }
+
+    if constexpr (Reservable<ContainerA> && std::ranges::sized_range<ContainerB>)
+        if (!std::ranges::empty(b)) a.reserve(a.size() + std::ranges::size(b));
+
+    // Check if ContainerB is a node-based container that supports extract (C++17 feature)
+    // This allows true moving of elements from sets/multisets.
+    if constexpr (requires(ContainerB& cb) { { cb.extract(cb.begin()) } -> std::same_as<typename ContainerB::node_type>; } &&
+                  requires(typename ContainerB::node_type& nh) { { std::move(nh.value()) }; { !nh.empty() }; }) {
+        // ContainerB is a node-based container (e.g., std::set, std::multiset, std::unordered_set, std::unordered_multiset)
+        while (!b.empty()) {
+            typename ContainerB::node_type node_handle = b.extract(b.begin()); // Removes from b, gives ownership
+            if (!node_handle.empty()) {
+                // Insert/push_back the extracted (and now movable) value into ContainerA
+                if constexpr (requires(ContainerA& ca, typename ContainerA::value_type&& val) { ca.push_back(std::move(val)); }) {
+                    a.push_back(std::move(node_handle.value()));
+                } else if constexpr (requires(ContainerA& ca, typename ContainerA::value_type&& val) { ca.insert(std::move(val)); }) {
+                    a.insert(std::move(node_handle.value()));
+                }
+            }
+        }
+    } else {
+        // ContainerB is likely a sequence container (e.g., std::vector) or does not support extract.
+        // For std::vector, iterators provide non-const access, so std::move(elem) works.
+        if constexpr (requires(ContainerA& ca, typename ContainerA::value_type&& val) { ca.push_back(std::move(val)); }) {
+            for (auto&& elem : b) a.push_back(std::move(elem));  // For std::vector, elem is T&
+        } else if constexpr (requires(ContainerA& ca, typename ContainerA::value_type&& val) { ca.insert(std::move(val)); }) {
+            for (auto&& elem : b) a.insert(std::move(elem));  // For std::vector, elem is T&
+        }
+    }
+
+    b.clear();
+    return a;
+}
+
+//------------------------------------------------------------------------------------------------
+// uniContainer - to move add elements in container B into A
+template <typename ContainerA, typename ContainerB>
+requires HasValueType<ContainerA> &&
+         HasValueType<ContainerB> &&
+         std::same_as<typename ContainerA::value_type, typename ContainerB::value_type> && // Elements must be of the same type
+         std::is_copy_constructible_v<typename ContainerA::value_type> && // Elements in 'a' must be copy-constructible
+         CopyableElementSink<ContainerA, typename ContainerA::value_type> &&  // 'a' must be able to accept copied elements
+         std::ranges::input_range<const ContainerB> // 'b' must be iterable when const (as it's passed as const ContainerB&)
+ContainerA& uniContainer(ContainerA& a, const ContainerB& b)
+{
+    if constexpr (Reservable<ContainerA> && std::ranges::sized_range<const ContainerB>)
+        if (!std::ranges::empty(b))  // std::ranges::empty works with const ContainerB
+            a.reserve(a.size() + std::ranges::size(b)); // std::ranges::size works with const ContainerB
+
+    // Perform element-wise copy from ContainerB to ContainerA.
+    // The CopyableElementSink concept ensures ContainerA supports one of these operations for const value_type& elements.
+    if constexpr (requires(ContainerA& ca, const typename ContainerA::value_type& val) { ca.push_back(val); })
+        // Use push_back if available (e.g., for std::vector).
+        for (const auto& elem : b)  a.push_back(elem); // This will copy the element.
+
+    else if constexpr (requires(ContainerA& ca, const typename ContainerA::value_type& val) { ca.insert(val); })
+        // Use insert if available (e.g., for std::set, std::multiset, etc.).
+        // For unique-key sets, insert will correctly ignore duplicates from 'b' (standard set behavior).
+        for (const auto& elem : b)  a.insert(elem); // This will copy the element.
 
     return a;
 }

@@ -116,6 +116,7 @@ using SplitOptions = std::bitset<8>;
 template <typename T> class  spliti;
 template <typename T> class  splitiv;  // Deepseek version
 template <typename T> inline TStrVec& splits (TStrVec& dst, const std::string& src, T delimiters, SplitOptions opt=0) noexcept;
+template <typename T> inline TStrVec  splits (const std::string& src, T delimiters, SplitOptions opt=0) noexcept { TStrVec dst; splits(dst,src,delimiters,opt); return dst; }
 template <typename T> inline TSvVec   splitsv(std::string_view src, T delimiters, SplitOptions opt=0) noexcept;
 template <typename T> inline TSvVec   splitsv(const std::string& src, T delimiters, SplitOptions opt=0) noexcept { return splitsv(std::string_view{src},delimiters,opt); }
 
