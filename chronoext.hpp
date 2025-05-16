@@ -46,7 +46,7 @@ using SysClkDur = chrono::system_clock::duration;
 
 enum class TimeUnit { Nano, Micro, Milli, Second, Minute, Hour, Day, Week, Month, Year };
 
-inline StdClkDur time_dure(long long value, TimeUnit unit)
+inline StdClkDur time_dure(time_t value, TimeUnit unit)
 {
     switch (unit) {
     case TimeUnit::Nano:   return chrono::nanoseconds(value);
@@ -64,7 +64,7 @@ inline StdClkDur time_dure(long long value, TimeUnit unit)
     }
 }
 
-template <typename T> inline StdClkDur time_dure(long long value) noexcept { return T(value); }
+template <typename T> inline StdClkDur time_dure(time_t value) noexcept { return T(value); }
 
 inline auto stdnow() noexcept { return chrono::steady_clock::now(); }
 inline auto sysnow() noexcept { return chrono::system_clock::now(); }
@@ -117,21 +117,23 @@ inline std::string str_date(const std::chrono::time_point<Clock, Duration>& tp, 
 //------------------------------------------------------------------------------------------------
 class TTimeout {
 private:
-    StdClkDur dur_{};
-    StdClkTP  tp_{};
+    StdClkDur dur_{}; // declaration must before tp_ to ensure init sequence
+    StdClkTP  tp_{};  // init value set to stdnow()-dur_, to ensure that first time calling expires() returns true
 
 public:
-    TTimeout(long long d, TimeUnit unit) { init(d,unit); }
-    template <typename T> TTimeout(long long d) { init<T>(d); }
+    TTimeout(StdClkDur dur)
+        : dur_(dur), tp_(stdnow()-dur_) {}
 
-    void init(long long d, TimeUnit unit) {
-        dur_ = time_dure(d, unit);
-        tp_ = stdnow()-dur_;  // to ensure that first time calling expires() returns true
-    }
+    TTimeout(time_t d, TimeUnit unit)
+        : dur_(time_dure(d, unit)), tp_(stdnow()-dur_) {}
 
-    template <typename T> void init(long long d) {
-        dur_= time_dure<T>(d);
-        tp_ = stdnow()-dur_;
+    template <typename T> TTimeout(time_t d)
+        : dur_(time_dure<T>(d)), tp_(stdnow()-dur_) {}
+
+    TTimeout& operator=(StdClkDur dur) {
+        dur_ = dur;
+        tp_  = stdnow() - dur_;
+        return *this;
     }
 
     bool expires() noexcept { return stdnow()-tp_ >= dur_; }
