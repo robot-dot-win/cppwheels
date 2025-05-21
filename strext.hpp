@@ -46,6 +46,9 @@
 using TStrVec = std::vector<std::string>;
 using TSvVec  = std::vector<std::string_view>;
 
+using TStrSet  = std::set<std::string>;
+using TStrMSet = std::multiset<std::string>;
+
 using TStrUoSet  = std::unordered_set<std::string>;
 using TStrUoMSet = std::unordered_multiset<std::string>;
 

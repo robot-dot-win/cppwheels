@@ -153,6 +153,18 @@ concept CopyableElementSink =
     requires(C& c, const ElementType& e) { c.push_back(e); } || // For vector-like containers, taking const ref
     requires(C& c, const ElementType& e) { c.insert(e); };   // For set-like containers, taking const ref
 
+// Concept to check if ContainerB supports node extraction (C++17 feature)
+template<typename ContainerB_t>
+concept ExtractSupportingContainer =
+    requires(ContainerB_t& cb) {
+        typename ContainerB_t::node_type; // Has a node_type
+        { cb.extract(cb.begin()) } -> std::same_as<typename ContainerB_t::node_type>; // extract(iterator) returns node_type
+    } &&
+    requires(typename ContainerB_t::node_type& nh) { // node_type properties
+        { std::move(nh.value()) }; // Can get a (movable) value
+        { !nh.empty() } -> std::convertible_to<bool>; // Can check if empty
+    };
+
 // ==================== Cost Calculation ====================
 template <typename Container>
 constexpr double lookup_cost_per_element(size_t container_size) {
@@ -178,7 +190,11 @@ inline bool inContainer(const Container& c, const Element& e) {
 }
 
 //------------------------------------------------------------------------------------------------
-// subContainer: Core Algorithm
+// subContainer - to subtract the elements(or its keys) from A contained in B (Difference or Except)
+//
+// Supported container types:
+//      vector, list, forward_list,map, multimap, set, multiset,unordered_map, unordered_multimap, unordered_set, unordered_multiset
+//
 template <typename ContainerA, typename ContainerB>
 ContainerA& subContainer(ContainerA& a, const ContainerB& b) {
     using KeyType = container_key_t<ContainerA>;
@@ -290,7 +306,11 @@ ContainerA& subContainer(ContainerA& a, const ContainerB& b) {
 
 //------------------------------------------------------------------------------------------------
 // mvtoContainer - to move all elements from container B into A
-template <typename ContainerA, typename ContainerB>
+//
+// Supported container types:
+//      std::vector，std::set，std::multiset，std::unordered_set，std::unordered_multiset，std::map，std::multimap
+//
+template <typename ContainerA,typename ContainerB>
 requires HasValueType<ContainerA> &&
          HasValueType<ContainerB> &&
          std::same_as<typename ContainerA::value_type, typename ContainerB::value_type> &&
@@ -306,29 +326,30 @@ ContainerA& mvtoContainer(ContainerA& a, ContainerB& b)
     if constexpr (Reservable<ContainerA> && std::ranges::sized_range<ContainerB>)
         if (!std::ranges::empty(b)) a.reserve(a.size() + std::ranges::size(b));
 
-    // Check if ContainerB is a node-based container that supports extract (C++17 feature)
-    // This allows true moving of elements from sets/multisets.
-    if constexpr (requires(ContainerB& cb) { { cb.extract(cb.begin()) } -> std::same_as<typename ContainerB::node_type>; } &&
-                  requires(typename ContainerB::node_type& nh) { { std::move(nh.value()) }; { !nh.empty() }; }) {
-        // ContainerB is a node-based container (e.g., std::set, std::multiset, std::unordered_set, std::unordered_multiset)
+    if constexpr (ExtractSupportingContainer<ContainerB>) {
+        // ContainerB is a node-based container (e.g., std::set, std::map, etc.)
         while (!b.empty()) {
             typename ContainerB::node_type node_handle = b.extract(b.begin()); // Removes from b, gives ownership
             if (!node_handle.empty()) {
-                // Insert/push_back the extracted (and now movable) value into ContainerA
-                if constexpr (requires(ContainerA& ca, typename ContainerA::value_type&& val) { ca.push_back(std::move(val)); }) {
+                // Try to insert the node_handle directly if A is a compatible node-based container.
+                // This is the most efficient path for map-to-map, set-to-set, etc.
+                if constexpr (requires(ContainerA& ca, typename ContainerB::node_type&& nh_from_b) { ca.insert(std::move(nh_from_b)); })
+                    a.insert(std::move(node_handle));
+                // Else, extract the value from the node and insert/push_back that.
+                else if constexpr (requires(ContainerA& ca, typename ContainerA::value_type&& val) { ca.push_back(std::move(val)); })
                     a.push_back(std::move(node_handle.value()));
-                } else if constexpr (requires(ContainerA& ca, typename ContainerA::value_type&& val) { ca.insert(std::move(val)); }) {
+                else if constexpr (requires(ContainerA& ca, typename ContainerA::value_type&& val) { ca.insert(std::move(val)); })
                     a.insert(std::move(node_handle.value()));
-                }
+                // One of the above insert/push_back must be true due to the MovableElementSink constraint on ContainerA for its value_type
             }
         }
     } else {
         // ContainerB is likely a sequence container (e.g., std::vector) or does not support extract.
-        // For std::vector, iterators provide non-const access, so std::move(elem) works.
+        // Elements are moved one by one.
         if constexpr (requires(ContainerA& ca, typename ContainerA::value_type&& val) { ca.push_back(std::move(val)); }) {
-            for (auto&& elem : b) a.push_back(std::move(elem));  // For std::vector, elem is T&
+            for (auto&& elem : b) a.push_back(std::move(elem));
         } else if constexpr (requires(ContainerA& ca, typename ContainerA::value_type&& val) { ca.insert(std::move(val)); }) {
-            for (auto&& elem : b) a.insert(std::move(elem));  // For std::vector, elem is T&
+            for (auto&& elem : b) a.insert(std::move(elem));
         }
     }
 
@@ -337,7 +358,11 @@ ContainerA& mvtoContainer(ContainerA& a, ContainerB& b)
 }
 
 //------------------------------------------------------------------------------------------------
-// uniContainer - to move add elements in container B into A
+// uniContainer - to add all elements in container B into A
+//
+// Supported container types:
+//      std::vector，std::set，std::multiset，std::unordered_set，std::unordered_multiset，std::map，std::multimap
+//
 template <typename ContainerA, typename ContainerB>
 requires HasValueType<ContainerA> &&
          HasValueType<ContainerB> &&
