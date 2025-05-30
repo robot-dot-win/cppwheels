@@ -28,6 +28,7 @@
 #include <charconv>
 #include <optional>
 #include <bitset>
+#include <set>
 #include <unordered_set>
 #include <stdexcept>
 #include <map>
@@ -67,7 +68,7 @@ extern const std::string SPACE_CHARS;
 #define str_found(pos) ((pos)!=std::string::npos)
 #define  sv_found(pos) ((pos)!=std::string_view::npos)
 #define lefts(s,n)   ((s).substr(0,n))
-#define leftsv(s,n)  ((s).substr(0,n))   // Since C++ 17
+//#define leftsv(s,n)  ((s).substr(0,n))   // Since C++ 17
 
 #ifndef QQ_CONCEPT_Integer
 #define QQ_CONCEPT_Integer
@@ -75,6 +76,15 @@ template <typename T> concept Integer = std::is_integral_v<T>;
 #endif
 
 //------------------------------------------------------------------------------------------------
+inline std::string_view  leftsv(std::string_view sv,     size_t n) noexcept { return sv.substr(0,n); }  // Since C++ 17
+inline std::string_view  leftsv(const std::string& src,  size_t n) noexcept { return std::string_view(src.data(),n); }
+
+template <typename T1, typename T2> inline T1  left_of(const T1& src, T2 mark, bool return_empty_if_not_found=true) noexcept;
+template <typename T1, typename T2> inline T1 right_of(const T1& src, T2 mark, bool return_empty_if_not_found=true) noexcept;
+
+template <typename T2> inline std::string&  erase_left_with (std::string& src, T2 mark) noexcept;
+template <typename T2> inline std::string&  erase_right_with(std::string& src, T2 mark) noexcept;
+
 inline std::string       rights (std::string_view sv,    size_t n=std::string_view::npos) noexcept { const size_t src_len{sv.size()}; return n>=src_len? std::string(sv) : std::string(sv.substr(src_len-n)); }
 inline std::string       rights (const std::string& src, size_t n=std::string::npos) noexcept { const size_t src_len{src.size()}; return n>=src_len? src : src.substr(src_len-n); }
 inline std::string_view  rightsv(std::string_view sv,    size_t n=std::string_view::npos) noexcept { const size_t src_len{sv.size()}; return n>=src_len? sv : sv.substr(src_len-n); }
@@ -187,7 +197,8 @@ public:
 
 //------------------------------------------------------------------------------------------------
 // Deepseek version
-template <typename T> class splitiv {
+template <typename T>
+class splitiv {
 private:
     T delimiters_;
     std::string_view sv_;
@@ -555,7 +566,8 @@ std::string_view& rtrimsvrf(std::string_view& sv) noexcept
 }
 
 //------------------------------------------------------------------------------------------------
-template <typename T1, typename T2> class strwinsv {
+template <typename T1, typename T2>
+class strwinsv {
 private:
     std::string_view src;
     T1 leftmark;
@@ -601,8 +613,8 @@ public:
 };
 
 //------------------------------------------------------------------------------------------------
-template <typename T1, typename T2> std::string_view
-lrmarksv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos) noexcept
+template <typename T1, typename T2>
+std::string_view lrmarksv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos) noexcept
 {
     auto findmark = [&sv](auto mark, size_t pos) {
         if constexpr (std::is_same_v<decltype(mark), char>)
@@ -628,8 +640,8 @@ lrmarksv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos) noexc
 
 //------------------------------------------------------------------------------------------------
 // By Deepseek
-template <typename T1, typename T2> TSvVec
-strwinsvv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos) noexcept
+template <typename T1, typename T2>
+TSvVec strwinsvv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos) noexcept
 {
     TSvVec results;
     strwinsv<T1, T2> scanner(sv, leftmark, rightmark, begin_pos);
@@ -644,8 +656,8 @@ strwinsvv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos) noex
 // Caution: The separator is either a character or a STRING. Eg.
 //      splitpairsv("key=value", '=');        // {"key", "value"}
 //      splitpairsv("key=>value", "=>");      // {"key", "value"}
-template <typename T> TSvPair
-splitpairsv(std::string_view src, T separator, bool itrim) noexcept
+template <typename T>
+TSvPair splitpairsv(std::string_view src, T separator, bool itrim) noexcept
 {
     size_t pos {std::string_view::npos};
     size_t delimiter_length {};
@@ -694,7 +706,8 @@ std::string_view& rmcommsvrf(std::string_view& srcv, const char mark, bool itrim
 }
 
 //------------------------------------------------------------------------------------------------
-template<Integer T> std::optional<T> str2int(std::string_view sv, std::optional<T> minvalue, std::optional<T> maxvalue, int base) noexcept
+template<Integer T>
+std::optional<T> str2int(std::string_view sv, std::optional<T> minvalue, std::optional<T> maxvalue, int base) noexcept
 {
     if (sv.empty()) return std::nullopt;
 
@@ -705,5 +718,52 @@ template<Integer T> std::optional<T> str2int(std::string_view sv, std::optional<
     ) return std::nullopt;
 
     return value;
+}
+//------------------------------------------------------------------------------------------------
+template <typename T1, typename T2>
+T1 left_of(const T1& src, T2 mark, bool return_empty_if_not_found) noexcept
+{
+    if( const size_t n {src.find(mark)}; str_found(n) )
+        return src.substr(0,n);
+    else
+        return return_empty_if_not_found? T1{} : src;
+}
+//------------------------------------------------------------------------------------------------
+template <typename T1, typename T2>
+T1 right_of(const T1& src, T2 mark, bool return_empty_if_not_found) noexcept
+{
+    const size_t lpos {src.find(mark)};
+    if( nposs(lpos) ) return return_empty_if_not_found? T1{} : src;
+
+    size_t mark_size{1};
+    if constexpr (!std::is_same_v<std::remove_cv_t<T2>, char>)
+        mark_size = std::string_view(mark).size();
+
+    return lpos+mark_size==src.size()? T1{} : src.substr(lpos+mark_size);
+}
+//------------------------------------------------------------------------------------------------
+template <typename T2>
+std::string& erase_left_with (std::string& src, T2 mark) noexcept
+{
+    const size_t lpos {src.find(mark)};
+    if( nposs(lpos) ) return src;
+
+    size_t mark_size{1};
+    if constexpr (!std::is_same_v<std::remove_cv_t<T2>, char>)
+        mark_size = std::string_view(mark).size();
+
+    if( lpos+mark_size==src.size() ) src.clear();
+    else src.erase(0, lpos+mark_size);
+
+    return src;
+}
+//------------------------------------------------------------------------------------------------
+template <typename T2>
+std::string&  erase_right_with(std::string& src, T2 mark) noexcept
+{
+    if( const size_t lpos {src.find(mark)}; str_found(lpos) )
+        return src.erase(lpos);
+    else
+        return src;
 }
 //------------------------------------------------------------------------------------------------

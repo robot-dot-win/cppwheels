@@ -21,6 +21,7 @@
 #include "strext.hpp"
 
 using namespace std::string_literals;
+using namespace std::string_view_literals;
 
 const std::string EMPTY_STR{};
 const std::string SPACE_CHARS{" \t\n\r\f\v"s};
