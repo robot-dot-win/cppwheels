@@ -55,9 +55,6 @@ struct uuid {
 
     std::string str() const;
 
-    // The std::string format of UUID v4 is already considered "pretty"
-    std::string pretty() const { return str(); }
-
 #ifdef __glibcxx_format
     template<typename FormatContext>
     auto format(FormatContext& ctx) const {

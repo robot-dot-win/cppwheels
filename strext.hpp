@@ -82,8 +82,8 @@ inline std::string_view  leftsv(const std::string& src,  size_t n) noexcept { re
 template <typename T1, typename T2> inline T1  left_of(const T1& src, T2 mark, bool return_empty_if_not_found=true) noexcept;
 template <typename T1, typename T2> inline T1 right_of(const T1& src, T2 mark, bool return_empty_if_not_found=true) noexcept;
 
-template <typename T2> inline std::string&  erase_left_with (std::string& src, T2 mark) noexcept;
-template <typename T2> inline std::string&  erase_right_with(std::string& src, T2 mark) noexcept;
+template <typename T2> inline std::string&  erase_left_at (std::string& src, T2 mark) noexcept;
+template <typename T2> inline std::string&  erase_right_at(std::string& src, T2 mark) noexcept;
 
 inline std::string       rights (std::string_view sv,    size_t n=std::string_view::npos) noexcept { const size_t src_len{sv.size()}; return n>=src_len? std::string(sv) : std::string(sv.substr(src_len-n)); }
 inline std::string       rights (const std::string& src, size_t n=std::string::npos) noexcept { const size_t src_len{src.size()}; return n>=src_len? src : src.substr(src_len-n); }
@@ -743,7 +743,7 @@ T1 right_of(const T1& src, T2 mark, bool return_empty_if_not_found) noexcept
 }
 //------------------------------------------------------------------------------------------------
 template <typename T2>
-std::string& erase_left_with (std::string& src, T2 mark) noexcept
+std::string& erase_left_at (std::string& src, T2 mark) noexcept
 {
     const size_t lpos {src.find(mark)};
     if( nposs(lpos) ) return src;
@@ -759,7 +759,7 @@ std::string& erase_left_with (std::string& src, T2 mark) noexcept
 }
 //------------------------------------------------------------------------------------------------
 template <typename T2>
-std::string&  erase_right_with(std::string& src, T2 mark) noexcept
+std::string&  erase_right_at(std::string& src, T2 mark) noexcept
 {
     if( const size_t lpos {src.find(mark)}; str_found(lpos) )
         return src.erase(lpos);
