@@ -151,6 +151,7 @@ inline std::string_view& rmcommsvrf(std::string_view& srcv, const char mark='#',
 template <typename T1, typename T2> inline std::string_view lrmarksv (std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos=0) noexcept;
 template <typename T1, typename T2> inline TSvVec           strwinsvv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos=0) noexcept;
 template <typename T1, typename T2> class strwinsv;
+inline TSvVec multiwinsvv(std::string_view sv, const std::vector<TSvPair> lrmarks, size_t begin_pos=0) noexcept;
 
 // Password generating and checking:
 enum class PasswordSecurityLevel {LOW,MEDIUM,HIGH};
@@ -765,5 +766,29 @@ std::string&  erase_right_at(std::string& src, T2 mark) noexcept
         return src.erase(lpos);
     else
         return src;
+}
+//------------------------------------------------------------------------------------------------
+TSvVec multiwinsvv(std::string_view sv, const std::vector<TSvPair> lrmarks, size_t begin_pos) noexcept
+{
+    TSvVec results;
+    results.reserve(lrmarks.size());
+    size_t current_search_pos {begin_pos};
+
+    for (const auto& [left_mark,right_mark] : lrmarks) {
+        const size_t lpos {sv.find(left_mark, current_search_pos)};
+        if (npossv(lpos)) {
+            results.emplace_back();
+            continue;
+        }
+        const size_t start_content_pos {lpos + left_mark.length()};
+        const size_t rpos {sv.find(right_mark, start_content_pos)};
+        if (npossv(rpos)) {
+            results.emplace_back();
+            continue;
+        }
+        results.emplace_back(sv.substr(start_content_pos, rpos - start_content_pos));
+        current_search_pos = rpos + right_mark.length();
+    }
+    return results;
 }
 //------------------------------------------------------------------------------------------------
