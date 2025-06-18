@@ -57,6 +57,7 @@ using TStrPair = std::pair<std::string, std::string>;
 using TSvPair  = std::pair<std::string_view, std::string_view>;
 
 using TStrMap  = std::map<std::string, std::string>;
+using TSvMap   = std::map<std::string_view, std::string_view>;
 using TStrMMap = std::multimap<std::string, std::string>;
 
 extern const std::string EMPTY_STR;
@@ -137,10 +138,8 @@ template <typename T> inline TSvPair splitpairsv(std::string_view   src, T separ
 template <typename T> inline TSvPair splitpairsv(const std::string& src, T separator, bool itrim=true) noexcept { return splitpairsv(std::string_view{src},separator,itrim); }
 
 // find and replace all(not use <regex> library in small projects):
-       std::string  replall(                  std::string_view   src, std::string_view    sfind, std::string_view   swith) noexcept;
-inline std::string  replall(                  const std::string& src, const std::string& sfind, const std::string& swith) noexcept { return replall(std::string_view(src), std::string_view(sfind), std::string_view(swith)); }  // not needed for C++ 20
-       std::string& replall(std::string& res, std::string_view   src, std::string_view    sfind, std::string_view   swith) noexcept;
-inline std::string& replall(std::string& res, const std::string& src, const std::string& sfind, const std::string& swith) noexcept { return replall(res, std::string_view(src), std::string_view(sfind), std::string_view(swith)); }  // not needed for C++ 20
+       std::string  replall(std::string_view src, std::string_view sfind, std::string_view swith);
+inline std::string  replall(const std::string& src, const std::string& sfind, const std::string& swith) { return replall(std::string_view(src), std::string_view(sfind), std::string_view(swith)); }
 inline std::string& replall(std::string& src, const char cfind, const char cwith) noexcept { std::replace(src.begin(),src.end(),cfind,cwith); return src; }
 
 // Remove trailing comment started by the most right character mark, eg. '#' or ';'

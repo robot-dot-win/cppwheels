@@ -17,7 +17,8 @@
 //------------------------------------------------------------------------
 
 #include <random>
-
+#include <cstddef>
+#include <iterator>
 #include "strext.hpp"
 
 using namespace std::string_literals;
@@ -46,136 +47,50 @@ const std::string SPACE_CHARS{" \t\n\r\f\v"s};
 //     return res;
 // }
 //----------------------------------------------------------------------------------------------------
-// Deepseek version
-std::string replall(std::string_view src, std::string_view sfind, std::string_view swith) noexcept
+// Deepseek version, reviewed by Gemini
+std::string replall(std::string_view src, std::string_view sfind, std::string_view swith)
 {
-    // 边界条件处理
-    if (src.empty() || sfind.empty())  return std::string{src};
-    if (sfind.length() > src.length()) return std::string{src};
+    // 边界条件处理: 如果查找的字符串为空，合理的行为是直接返回原字符串以避免无限循环。
+    if( src.empty() || sfind.empty() || sfind.length() > src.length() )
+        return std::string{src};
 
-    // Boyer-Moore 搜索器初始化
-    const auto searcher{std::boyer_moore_searcher(sfind.begin(), sfind.end())};
-
-    // 第一阶段：收集所有匹配位置
+    // 第一阶段：使用 Boyer-Moore 搜索器收集所有不重叠的匹配位置
+    const auto searcher = std::boyer_moore_searcher(sfind.begin(), sfind.end());
     std::vector<size_t> matches{};
-    auto it{src.begin()};
-    const auto end{src.end()};
+    auto it = src.begin();
+    const auto end = src.end();
 
-    while (true) {
-        const auto match{std::search(it, end, searcher)};
-        if (match == end) break;
-
-        const auto pos{static_cast<size_t>(match - src.begin())};
-        matches.emplace_back(pos);
+    while (it != end) {
+        const auto match = std::search(it, end, searcher);
+        if (match == end)  break;
+        matches.emplace_back(static_cast<size_t>(std::distance(src.begin(), match)));
         it = match + sfind.length();
     }
 
     if (matches.empty()) return std::string{src};
 
-    // 预分配内存
-    const size_t find_len{sfind.length()};
-    const size_t replace_diff{swith.length() - find_len};
+    // 第二阶段：构建结果字符串
     std::string result{};
-    result.reserve(src.length() + matches.size() * replace_diff);
 
-    // 第二阶段：构建结果
+    // 预分配内存（BUG 修正 by Gemini）
+    // 使用有符号的 ptrdiff_t 计算长度差，以防止整数下溢。
+    const ptrdiff_t diff = static_cast<ptrdiff_t>(swith.length()) - static_cast<ptrdiff_t>(sfind.length());
+    if (diff > 0) {   // 仅当字符串增长时预分配，这是最主要优化点
+        const size_t new_capacity = src.length() + matches.size() * diff;
+        result.reserve(new_capacity);
+    }
+
     size_t last_pos{};
+    const size_t find_len = sfind.length();
     for (const auto& pos : matches) {
-        result.append(src.substr(last_pos, pos - last_pos));
+        result.append(src.data() + last_pos, pos - last_pos); // 使用 data() + 指针偏移可能更高效
         result.append(swith);
         last_pos = pos + find_len;
     }
-    result.append(src.substr(last_pos));
+    result.append(src.data() + last_pos, src.length() - last_pos);
 
     return result;
 }
-
-//----------------------------------------------------------------------------------------------------
-// My version
-// std::string& replall(std::string& res, const std::string& src, const std::string& sfind, const std::string& swith)
-// {
-//     if( src.empty() || sfind.empty() ) {
-//         res.clear();
-//         return res;
-//     }
-//
-//     size_t pos = src.find(sfind);
-//     if (nposs(pos)) {
-//         res = src;
-//         return res;
-//     }
-//
-//     size_t nfrom{};
-//     res.clear();
-//     do {
-//         res += src.substr(nfrom, pos-nfrom)+swith;
-//         nfrom = pos+sfind.length();
-//         pos = src.find(sfind, nfrom);
-//     } while( !nposs(pos) );
-//     if( nfrom < src.size() ) res += src.substr(nfrom);
-//     return res;
-// }
-//----------------------------------------------------------------------------------------------------
-// Deepseek version
-std::string& replall(std::string& result, std::string_view src, std::string_view sfind, std::string_view swith) noexcept
-{
-    // 清空并重置结果容器
-    result.clear();
-    result.shrink_to_fit();
-
-    // 边界条件处理
-    if (src.empty() || sfind.empty() || sfind.size() > src.size()) {
-        result = src;
-        return result;
-    }
-
-    // Boyer-Moore算法初始化
-    const auto searcher{std::boyer_moore_searcher(sfind.begin(), sfind.end())};
-
-    // 第一阶段：收集所有匹配位置
-    std::vector<size_t> matches{};
-    auto it{src.begin()};
-    const auto end{src.end()};
-
-    while (true) {
-        const auto match{std::search(it, end, searcher)};
-        if (match == end) break;
-
-        const auto pos{static_cast<size_t>(match - src.begin())};
-        matches.emplace_back(pos);
-        it = match + sfind.size();
-    }
-
-    if (matches.empty()) {
-        result = src;
-        return result;
-    }
-
-    // 预计算所需内存
-    const size_t src_len     {src.size()};
-    const size_t find_len    {sfind.size()};
-    const size_t replace_diff{swith.size() - find_len};
-    const size_t total_size  {src_len + matches.size() * replace_diff};
-
-    // 内存管理优化
-    if (result.capacity() < total_size) {
-        result.reserve(total_size * 1.2);  // 预分配额外20%空间
-    } else {
-        result.reserve(total_size);        // 复用已有容量
-    }
-
-    // 第二阶段：构建结果
-    size_t last_pos{};
-    for (const auto& pos : matches) {
-        result.append(src.data() + last_pos, pos - last_pos);
-        result.append(swith);
-        last_pos = pos + find_len;
-    }
-    result.append(src.data() + last_pos, src_len - last_pos);
-
-    return result;
-}
-
 //----------------------------------------------------------------------------------------
 std::string genPassword(PasswordSecurityLevel level, size_t length)
 {
@@ -223,7 +138,6 @@ std::string genPassword(PasswordSecurityLevel level, size_t length)
 
     return password;
 }
-
 //----------------------------------------------------------------------------------------
 bool chkPassword(std::string_view password, PasswordSecurityLevel level, size_t min_length)
 {
@@ -262,3 +176,4 @@ bool chkPassword(std::string_view password, PasswordSecurityLevel level, size_t 
     }
     return check_complete();
 }
+//----------------------------------------------------------------------------------------

@@ -62,7 +62,9 @@ public:
                std::to_string((*this)[3]);
     }
 
-    auto operator<=>(const ip4&) const = default;   // Since C++ 20
+    auto operator<=>(const ip4& other) const noexcept { return aa <=> other.aa; }   // Since C++ 20
+
+    operator uint32_t() const noexcept { return aa; }
 
     ip4& operator ++()    noexcept { ++aa; return *this; }
     ip4& operator --()    noexcept { --aa; return *this; }
@@ -71,6 +73,9 @@ public:
 
     ip4& operator +=(int n) noexcept { aa+=n; return *this; }
     ip4& operator -=(int n) noexcept { aa-=n; return *this; }
+
+    ip4 operator +(int n) const noexcept { return ip4(aa+n); }
+    ip4 operator -(int n) const noexcept { return ip4(aa-n); }
 
     ip4  operator >>(uint8_t nbit) const noexcept { return (uint64_t)aa>>nbit; }
     ip4  operator <<(uint8_t nbit) const noexcept { return (uint64_t)aa<<nbit; }
@@ -81,6 +86,10 @@ public:
     // Validate and assign ip4 value, ingoring exceptions
     [[nodiscard]] bool vali(const std::string& sa) noexcept {
         try { *this = ip4(sa); } catch(...) { return false; }
+        return true;
+    }
+    [[nodiscard]] bool vali(std::string_view sv) noexcept {
+        try { *this = ip4(sv); } catch(...) { return false; }
         return true;
     }
     [[nodiscard]] bool vali(const char* pa) noexcept {
@@ -113,6 +122,10 @@ public:
     // Validate and assign ip4net value, ingoring exceptions
     [[nodiscard]] bool vali(ip4 ip, uint8_t msk) noexcept {
         try { *this = ip4net(ip,msk); } catch(...) { return false; }
+        return true;
+    }
+    [[nodiscard]] bool vali(std::string_view ips) noexcept {
+        try { *this = ip4net(ips); } catch(...) { return false; }
         return true;
     }
     [[nodiscard]] bool vali(const std::string& ips) noexcept {
