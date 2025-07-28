@@ -125,6 +125,12 @@ inline std::string ucases (const std::string& src) noexcept { return ucases(std:
 inline std::string& lcaserf(std::string& str) noexcept { std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) -> char {return static_cast<char>(std::tolower(c));}); return str; }
 inline std::string& ucaserf(std::string& str) noexcept { std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) -> char {return static_cast<char>(std::toupper(c));}); return str; }
 
+inline size_t count_utf8_chars(std::string_view  utf8_sv) noexcept;
+inline size_t count_utf8_chars(const std::string& utf8_s) noexcept { return count_utf8_chars(std::string_view(utf8_s)); }
+
+inline std::string_view left_utf8_chars(std::string_view  utf8_sv, size_t n) noexcept;
+inline std::string      left_utf8_chars(const std::string& utf8_s, size_t n) noexcept { return std::string(left_utf8_chars(std::string_view(utf8_s), n)); }
+
 enum SplitOption: uint8_t {TRIM=1<<0,NOEMPTY=1<<1};
 using SplitOptions = std::bitset<8>;
 template <typename T> class  spliti;
@@ -723,10 +729,9 @@ std::optional<T> str2int(std::string_view sv, std::optional<T> minvalue, std::op
 template <typename T1, typename T2>
 T1 left_of(const T1& src, T2 mark, bool return_empty_if_not_found) noexcept
 {
-    if( const size_t n {src.find(mark)}; str_found(n) )
-        return src.substr(0,n);
-    else
-        return return_empty_if_not_found? T1{} : src;
+    if( const size_t n {src.find(mark)}; str_found(n) ) return src.substr(0,n);
+
+    return return_empty_if_not_found? T1{} : src;
 }
 //------------------------------------------------------------------------------------------------
 template <typename T1, typename T2>
@@ -761,10 +766,8 @@ std::string& erase_left_at (std::string& src, T2 mark) noexcept
 template <typename T2>
 std::string&  erase_right_at(std::string& src, T2 mark) noexcept
 {
-    if( const size_t lpos {src.find(mark)}; str_found(lpos) )
-        return src.erase(lpos);
-    else
-        return src;
+    const size_t lpos {src.find(mark)};
+    return str_found(lpos)? src.erase(lpos) : src;
 }
 //------------------------------------------------------------------------------------------------
 TSvVec multiwinsvv(std::string_view sv, const std::vector<TSvPair> lrmarks, size_t begin_pos) noexcept
@@ -789,5 +792,26 @@ TSvVec multiwinsvv(std::string_view sv, const std::vector<TSvPair> lrmarks, size
         current_search_pos = rpos + right_mark.length();
     }
     return results;
+}
+//------------------------------------------------------------------------------------------------
+size_t count_utf8_chars(std::string_view utf8_sv) noexcept
+{
+    size_t count = 0;
+    for (unsigned char c : utf8_sv) if ((c & 0xC0) != 0x80) count++;
+    return count;
+}
+//------------------------------------------------------------------------------------------------
+std::string_view left_utf8_chars(std::string_view utf8_sv, size_t n) noexcept
+{
+    if (n == 0) return std::string_view{};
+
+    size_t byte_pos = 0;
+    for( size_t char_count=0; byte_pos < utf8_sv.size(); byte_pos++ )
+        if ((static_cast<unsigned char>(utf8_sv[byte_pos]) & 0xC0) != 0x80) {
+            if (char_count == n) break;
+            char_count++;
+        }
+
+    return utf8_sv.substr(0, byte_pos);
 }
 //------------------------------------------------------------------------------------------------
