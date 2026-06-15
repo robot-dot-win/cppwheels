@@ -33,6 +33,10 @@
 #include <stdexcept>
 #include <map>
 #include <memory>
+#include <ranges>
+#include <version>  // __cpp_lib_* macro
+
+#include "strvecjoin.hpp"
 
 // About suffix of func names:
 //    s  - return std::string type
@@ -796,7 +800,7 @@ TSvVec multiwinsvv(std::string_view sv, const std::vector<TSvPair> lrmarks, size
 //------------------------------------------------------------------------------------------------
 size_t count_utf8_chars(std::string_view utf8_sv) noexcept
 {
-    size_t count = 0;
+    size_t count{};
     for (unsigned char c : utf8_sv) if ((c & 0xC0) != 0x80) count++;
     return count;
 }
@@ -805,8 +809,8 @@ std::string_view left_utf8_chars(std::string_view utf8_sv, size_t n) noexcept
 {
     if (n == 0) return std::string_view{};
 
-    size_t byte_pos = 0;
-    for( size_t char_count=0; byte_pos < utf8_sv.size(); byte_pos++ )
+    size_t byte_pos{};
+    for( size_t char_count{}; byte_pos < utf8_sv.size(); byte_pos++ )
         if ((static_cast<unsigned char>(utf8_sv[byte_pos]) & 0xC0) != 0x80) {
             if (char_count == n) break;
             char_count++;
