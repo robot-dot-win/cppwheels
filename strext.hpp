@@ -36,7 +36,7 @@
 #include <ranges>
 #include <version>  // __cpp_lib_* macro
 
-#include "strvecjoin.hpp"
+#include "strjoin.hpp"
 
 // About suffix of func names:
 //    s  - return std::string type
