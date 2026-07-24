@@ -128,3 +128,26 @@ bool cfgfile::save()
     errmsg.clear();
     return true;
 }
+
+//---------------------------------------------------------------------------------------
+// Check errmsg to judge if [section].key exists.
+std::string_view cfgfile::keyValue(const std::string& section, const std::string& key)
+{
+    errmsg.clear();
+
+    auto sec_it = cfg.find(section);
+    if (sec_it == cfg.end()) {
+        errmsg = "Section NOT exists: ["s+section+"]"s;
+        return {};
+    }
+
+    auto key_it = sec_it->second.find(key);
+    if (key_it == sec_it->second.end()) {
+        errmsg = "Key NOT exists: ["s+section+"]."s+key;
+        return {};
+    }
+
+    return key_it->second;
+}
+
+//---------------------------------------------------------------------------------------

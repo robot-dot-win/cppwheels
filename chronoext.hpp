@@ -1,5 +1,7 @@
 //  Chrono library extentions.
 //
+//  Header-only file.
+//
 //  Copyright (C) 2025, Martin Young <martin_young@live.cn>
 //
 //  This program is free software: you can redistribute it and/or modify

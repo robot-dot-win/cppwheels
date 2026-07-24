@@ -20,6 +20,8 @@
 
 #include "strext.hpp"
 
+using TCfgMap = std::map<std::string, TStrMap>;
+
 enum class cfgopenmode {r, rw};
 
 //-------------------------------------------------------------------------------------------
@@ -30,7 +32,7 @@ protected:
     const char separator;
 public:
     std::string errmsg;
-    std::map<std::string, TStrMap> cfg;
+    TCfgMap cfg;
 
     // After initializing an instance, check errmsg to judge if error occurs.
     cfgfile(const std::string sfile={}, cfgopenmode mode=cfgopenmode::r, const char sep='=')
@@ -41,6 +43,65 @@ public:
 
     bool reload();
     bool save();
+
+    // For convenient, a template function "get" is not provided
+
+    std::string_view keyValue(const std::string& section, const std::string& key);
+
+    bool getStr(std::string& value, const std::string& section, const std::string& key, const std::string& default_value={}) {
+        value = keyValue(section, key);
+        if( !errmsg.empty() ) {
+            value = default_value;
+            return false;
+        }
+        return true;
+    }
+
+    bool getBool(bool& value, const std::string& section, const std::string& key, bool default_value={}) {
+        std::string str_val = lcases(keyValue(section, key));
+        if( !errmsg.empty() ) {
+            value = default_value;
+            return false;
+        }
+
+        value = (str_val == "yes" || str_val == "true" || str_val == "on");
+        return true;
+    }
+
+    template<Integer T>
+    bool getInt(T& value, const std::string& section, const std::string& key, T default_value={}) {
+        auto sv = keyValue(section, key);
+        if( !errmsg.empty() ) {
+            value = default_value;
+            return false;
+        }
+
+        const char* first = sv.data();
+        if( !from_c_succ(first, first+sv.size(), value) ) {
+            errmsg = "Invalid integer string in key value: ["+section+"]."+key;
+            value = default_value;
+            return false;
+        }
+        return true;
+    }
+
+    bool getStrList(TStrVec& valuelist, const std::string& section, const std::string& key, const char delimiter=',') {
+        valuelist.clear();
+
+        std::string value;
+        if( !getStr(value, section, key) ) return false;
+        splits(valuelist, value, delimiter, SplitOption::TRIM);
+        return true;
+    }
+
+    template<Integer T>
+    bool getIntList(std::vector<T>& valuelist, const std::string& section, const std::string& key, T error_value={}, const char delimiter=',') {
+        valuelist.clear();
+
+        TStrVec strlist;
+        if( !getStrList(strlist, section, key, delimiter) ) return false;
+        for( const auto& s: strlist ) valuelist.push_back(str2int<T>(s).value_or(error_value));
+    }
 };
 
 //Configuration File Syntax
