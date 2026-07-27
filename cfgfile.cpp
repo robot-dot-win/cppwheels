@@ -18,136 +18,101 @@
 
 #include <iostream>
 #include <fstream>
+#include <istream>
 #include <filesystem>
 #include "cfgfile.hpp"
 
 using namespace std;
 
 //---------------------------------------------------------------------------------------
-bool cfgfile::reload()
+void cfgfile::open(string path, bool readonly, char sep)
 {
-    cfg.clear();
-    errmsg.clear();
+    if (path.empty()) throw invalid_argument("cfgfile::open: path empty");
 
-    if (srcfile.empty()) {
-        if (readonly) return true;
-        errmsg = "No file name. Changes will not be saved"s;
-        return false;
+    if (!srcfile_.empty()) {    // re-use the instance
+        if (modified_ && !readonly_) save();   // may throw exception
+        cfg_.clear();
+        modified_ = false;
     }
 
-    if( !filesystem::exists(srcfile) ) {
-        if (readonly) {
-            errmsg = "File does not exist: "s + srcfile;
-            return false;
-        }
-        return true;    // a new file for writing that may not exist
+    srcfile_   = move(path);
+    separator_ = sep;
+    readonly_  = readonly;
+
+    error_code ec;
+    bool exists = filesystem::exists(srcfile_, ec);
+    if (ec) throw filesystem::filesystem_error("cfgfile::open: cannot stat file", srcfile_, ec);
+
+    if (exists) {
+        ifstream ifs(srcfile_);
+        if (!ifs.is_open()) throw runtime_error("cfgfile::open: cannot open file: " + srcfile_);
+        parse_stream(ifs);
+    } else {
+        if (readonly) throw filesystem::filesystem_error( "cfgfile::open: file not found", srcfile_,
+                make_error_code(errc::no_such_file_or_directory));
+
+        // !readonly: try to create
+        ofstream ofs(srcfile_);
+        if (!ofs.is_open()) throw runtime_error("cfgfile::open: cannot create file: " + srcfile_);
+    }
+}
+
+//---------------------------------------------------------------------------------------
+void cfgfile::save()
+{
+    check_writable();
+
+    ofstream ofs(srcfile_, ios::trunc);
+    if (!ofs.is_open()) throw runtime_error("cfgfile::save: cannot open file: " + srcfile_);
+
+    ofs.exceptions(ofstream::failbit | ofstream::badbit);
+
+    try {
+        write_stream(ofs);
+        ofs.close();
+    } catch (const ios_base::failure& e) {
+        throw runtime_error( string("cfgfile::save: I/O error: ") + e.what());
     }
 
-    ifstream ifs(srcfile);
-    if ( !ifs ) {
-        errmsg = "Failed to open file: "s + srcfile;
-        return false;
-    }
+    modified_ = false;
+}
 
+//---------------------------------------------------------------------------------------
+void cfgfile::parse_stream(istream& is)
+{
+    cfg_.clear();
     string line;
     string current_section{};
-    while (getline(ifs, line)) {
-        string_view linesv = rmcommsv(line);
-        if (linesv.empty()) continue;
 
+    while (getline(is, line)) {
+        string_view linesv = rmcommsv(line, mark_);
+        if (linesv.empty()) continue;
         if (linesv[0] == '[') {
-            // Section name including leading and trailing spaces means that one or more space characters can act as section name.
-            // Characters after ']' are ignored.
-            current_section = lrmarksv(linesv, '[', ']');
-            if (current_section.empty()) {
-                errmsg = "Invalid section header: "s + line;
-                return false;
-            }
+            current_section = lrmarksv(linesv, '[', ']');   // may be empty if there's no ']'
             continue;
         }
-
-        if (current_section.empty()) {
-            errmsg = "Option outside of section: "s + line;
-            return false;
-        }
-
-        const auto& [key, value] {splitpairsv(linesv,separator)};
-
-        if( key.empty() ) {
-            errmsg = "Empty key in option: "s + line;
-            return false;
-        }
-
-        cfg[current_section][string(key)] = value;
+        const auto& [key, value] {splitpairsv(linesv,separator_)};   // key or/and value may be empty
+        cfg_[current_section][string(key)] = value;
     }
-
-    return true;
 }
 
 //---------------------------------------------------------------------------------------
-bool cfgfile::save()
+void cfgfile::write_stream(ostream& os) const
 {
-    if (srcfile.empty()) {
-        errmsg = "No file to write."s;
-        return false;
-    }
+    // If sec_name or k-v contains '#', add a comment at the end automatically
+    auto add_comment = [&](){ os << "  " << mark_ << " must have a comment at tail"; };
 
-    if (readonly) {
-        errmsg = "Read-only is set: "s + srcfile;
-        return false;
-    }
-
-    ofstream ofs(srcfile);
-    if (!ofs.is_open()) {
-        errmsg = "Failed to open file for writing: "s + srcfile;
-        return false;
-    }
-
-    // If value contains '#', add a comment at the end automatically
-    constexpr string_view auto_comment = "    # value containing number sign(s) must have a comment at the line"sv;
-
-    for (const auto& section_pair : cfg) {
-        ofs << '[' << section_pair.first << ']' << endl;
-        for (const auto& option_pair : section_pair.second) {
-            ofs << option_pair.first << separator << option_pair.second;
-            if( str_found(option_pair.second.find('#')) ) ofs << auto_comment;
-            ofs << endl;
+    for (const auto& [sec_name, kvs] : cfg_) {
+        os << '[' << sec_name << ']';
+        if (sec_name.find(mark_) != string::npos) add_comment();
+        os << '\n';
+        for (const auto& [k, v] : kvs) {
+            os << k << separator_ << v;
+            if (k.find(mark_) != string::npos || v.find(mark_) != string::npos) add_comment();
+            os << '\n';
         }
-        ofs << endl;
+        os << '\n';
     }
-
-    ofs.exceptions ( ofstream::failbit | ofstream::badbit );
-    try {
-        ofs.close();
-    }
-    catch (ofstream::failure &e) {
-        errmsg = "Error writing file: "s + e.what();
-        return false;
-    }
-
-    errmsg.clear();
-    return true;
-}
-
-//---------------------------------------------------------------------------------------
-// Check errmsg to judge if [section].key exists.
-std::string_view cfgfile::keyValue(const std::string& section, const std::string& key)
-{
-    errmsg.clear();
-
-    auto sec_it = cfg.find(section);
-    if (sec_it == cfg.end()) {
-        errmsg = "Section NOT exists: ["s+section+"]"s;
-        return {};
-    }
-
-    auto key_it = sec_it->second.find(key);
-    if (key_it == sec_it->second.end()) {
-        errmsg = "Key NOT exists: ["s+section+"]."s+key;
-        return {};
-    }
-
-    return key_it->second;
 }
 
 //---------------------------------------------------------------------------------------

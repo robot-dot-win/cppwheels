@@ -16,94 +16,6 @@
 //  along with this program. If not, see <https://www.gnu.org/licenses/>.
 //------------------------------------------------------------------------
 
-#pragma once
-
-#include "strext.hpp"
-
-using TCfgMap = std::map<std::string, TStrMap>;
-
-enum class cfgopenmode {r, rw};
-
-//-------------------------------------------------------------------------------------------
-class cfgfile {     // Only for single thread usage
-protected:
-    const std::string srcfile;
-    const bool readonly;
-    const char separator;
-public:
-    std::string errmsg;
-    TCfgMap cfg;
-
-    // After initializing an instance, check errmsg to judge if error occurs.
-    cfgfile(const std::string sfile={}, cfgopenmode mode=cfgopenmode::r, const char sep='=')
-        : srcfile(sfile), readonly(mode==cfgopenmode::r), separator(sep)
-        { reload(); }
-
-    ~cfgfile() { if(!readonly) save(); }
-
-    bool reload();
-    bool save();
-
-    // For convenient, a template function "get" is not provided
-
-    std::string_view keyValue(const std::string& section, const std::string& key);
-
-    bool getStr(std::string& value, const std::string& section, const std::string& key, const std::string& default_value={}) {
-        value = keyValue(section, key);
-        if( !errmsg.empty() ) {
-            value = default_value;
-            return false;
-        }
-        return true;
-    }
-
-    bool getBool(bool& value, const std::string& section, const std::string& key, bool default_value={}) {
-        std::string str_val = lcases(keyValue(section, key));
-        if( !errmsg.empty() ) {
-            value = default_value;
-            return false;
-        }
-
-        value = (str_val == "yes" || str_val == "true" || str_val == "on");
-        return true;
-    }
-
-    template<Integer T>
-    bool getInt(T& value, const std::string& section, const std::string& key, T default_value={}) {
-        auto sv = keyValue(section, key);
-        if( !errmsg.empty() ) {
-            value = default_value;
-            return false;
-        }
-
-        const char* first = sv.data();
-        if( !from_c_succ(first, first+sv.size(), value) ) {
-            errmsg = "Invalid integer string in key value: ["+section+"]."+key;
-            value = default_value;
-            return false;
-        }
-        return true;
-    }
-
-    bool getStrList(TStrVec& valuelist, const std::string& section, const std::string& key, const char delimiter=',') {
-        valuelist.clear();
-
-        std::string value;
-        if( !getStr(value, section, key) ) return false;
-        splits(valuelist, value, delimiter, SplitOption::TRIM);
-        return true;
-    }
-
-    template<Integer T>
-    bool getIntList(std::vector<T>& valuelist, const std::string& section, const std::string& key, T error_value={}, const char delimiter=',') {
-        valuelist.clear();
-
-        TStrVec strlist;
-        if( !getStrList(strlist, section, key, delimiter) ) return false;
-        for( const auto& s: strlist ) valuelist.push_back(str2int<T>(s).value_or(error_value));
-    }
-};
-
 //Configuration File Syntax
 //=====================================
 //
@@ -114,6 +26,8 @@ public:
 //
 //# Comment ...
 //
+//name_in_empty_section = value 1
+//
 //[section 1]
 //
 //[section 2]
@@ -122,6 +36,7 @@ public:
 //name 3 = Value_contains_#_character   # Must followed by a comment at the line
 //name 4 =           # Empty value
 //name 5             # Empty value
+//       = Value_of_empty_key_name
 //
 //Ignored Matter
 //---------------------------
@@ -130,15 +45,17 @@ public:
 //
 //Sections
 //---------------------------
-//A section starts with a section header. The section header must be the first line
-//in the configuration file, except for empty lines or comments.
+//A section starts with a section header. The section header starts with a left bracket
+//'[', any spaces before which are ignored. All charaters between the opening bracket and
+// the first right bracket ']' in the line form the section name. Any text between that
+// right bracket and the end of the line is ignored.
 //
-//The section header starts with a left bracket '[', any space before which is
-//ignored. Everything(including any space) between the opening bracket and the first
-//right bracket ']' in the line is the section name. Any text between that right
-//bracket and the end of the line is ignored.
+//Section names are case-sensitive. Empty-named sections are permitted.
 //
-//Section names are case-sensitive and not empty.
+//An invalid section header(without right bracket ']') is considered as an empty-named
+//section(same as "[]").
+//
+//If the name contains '#' characters，you have to add a comment at the line.
 //
 //Reopening Sections
 //---------------------------
@@ -148,19 +65,13 @@ public:
 //
 //Options
 //---------------------------
-//An option is a mapping between a name and a value. Options cannot appear outside of
-//a section. Options in different sections are considered separate even if they have
-//the same name.
+//An option is a mapping between a name and a value. Options before the first section
+//are considered in the empty-named section. Options in different sections are considered
+//separate even if they have the same name.
 //
 //The way to define an option:
 //
 //name = value
-//
-//Option names, like section names, are case-sensitive and not empty.
-//
-//The option name must start in the first column of the line and stops at the separator
-//'=', but the leading spaces and the spaces around the separator are optional and are
-//ignored. This means that:
 //
 //. The name cannot start with '[' or '#', those characters start a section header or a
 //  comment;
@@ -168,6 +79,7 @@ public:
 //. Like section names, an option name may contain spaces within it, but all leading and
 //  trailing spaces are removed.
 //. If '=' is omitted, value is an empty string.
+//. Option names are case-sensitive and can be empty(omitted).
 //
 //The options's value is all the text from the separator character until the end of the
 //line or the most right character '#', which starts a comment at the line. Leading and
@@ -175,3 +87,166 @@ public:
 //preserved.
 //
 //So if the value contains '#' characters，you have to add a comment at the line.
+//-------------------------------------------------------------------------------------------
+
+#pragma once
+
+#include "strext.hpp"
+
+using TCfgMap = std::map<std::string, TStrMap, std::less<>>;
+
+class cfgfile {
+public:
+    using section_iterator = TCfgMap::const_iterator;
+    using key_iterator     = TStrMap::const_iterator;
+    using section_range    = std::ranges::subrange<section_iterator>;
+    using key_range        = std::ranges::subrange<key_iterator>;
+
+    // Xstructors:
+    cfgfile() = default;
+    ~cfgfile() {
+        if (modified_ && !readonly_) {
+            try { save(); } catch (...) {}
+        }
+    }
+
+    cfgfile(const cfgfile&)            = delete;
+    cfgfile& operator=(const cfgfile&) = delete;
+    cfgfile(cfgfile&&)                 = delete;
+    cfgfile& operator=(cfgfile&&)      = delete;
+
+    // File operations (exception thrown):
+    void open(std::string path, bool readonly = true, char sep = '=');
+    void save();
+
+    // "read" operations:
+    [[nodiscard]]
+    std::string getStr(std::string_view section, std::string_view key, std::string_view def = {}) const
+    {
+        if (auto sec_it = cfg_.find(section); sec_it != cfg_.end())
+            if (auto key_it = sec_it->second.find(key); key_it != sec_it->second.end())
+                return key_it->second;
+
+        return std::string(def);
+    }
+
+    template<std::integral T = int>
+    [[nodiscard]]
+    T getInt(std::string_view section, std::string_view key, T def = T{}) const
+    {
+        auto s = getStr(section, key);
+        return s.empty()? def : str2int<T>(s).value_or(def);
+    }
+
+    [[nodiscard]]
+    bool getBool(std::string_view section, std::string_view key, bool def = false) const
+    {
+        auto s = getStr(section, key);
+        return s.empty()? def : (lcaserf(s) == "yes" || s == "true" || s == "on");
+    }
+
+    [[nodiscard]]
+    std::vector<std::string> getStrList(std::string_view section, std::string_view key, char delimiter = ',', SplitOptions spo=SplitOption::TRIM) const
+    {
+        std::vector<std::string> result;
+        auto s = getStr(section, key);
+        if( !s.empty() ) splits(result, s, delimiter, spo);
+        return result;
+    }
+
+    template<std::integral T = int>
+    [[nodiscard]]
+    std::vector<T> getIntList(std::string_view section, std::string_view key, T error_value={}, char delimiter = ',') const
+    {
+        std::vector<T> result;
+        auto strlist = getStrList(section, key, delimiter);
+        result.reserve(strlist.size());
+        for (const auto& s : strlist)  result.push_back(str2int<T>(s).value_or(error_value));
+        return result;
+    }
+
+    // "modify" operations (std::logic_error thrown when readonly)
+    void setKey(std::string_view section,
+                std::string_view key,
+                std::string_view value)
+    {
+        check_writable();
+        cfg_[std::string(section)][std::string(key)] = std::string(value);
+        modified_ = true;
+    }
+
+    void delSec(std::string_view section)
+    {
+        check_writable();
+
+#if defined(__cpp_lib_associative_heterogeneous_erasure) && __cpp_lib_associative_heterogeneous_erasure >= 202110L
+        // Since C++23: erase(K&&) (P2077R3)
+        if (cfg_.erase(section) > 0)  modified_ = true;
+#else
+        if (auto it = cfg_.find(section); it != cfg_.end()) {
+            cfg_.erase(it);
+            modified_ = true;
+        }
+#endif
+    }
+
+    void delKey(std::string_view section, std::string_view key)
+    {
+        check_writable();
+
+        if (auto it = cfg_.find(section); it != cfg_.end()) {
+#if defined(__cpp_lib_associative_heterogeneous_erasure) && __cpp_lib_associative_heterogeneous_erasure >= 202110L
+            // Since C++23: erase(K&&) (P2077R3)
+            if (it->second.erase(key) > 0)  modified_ = true;
+#else
+            if (auto kit = it->second.find(key); kit != it->second.end()) {
+                it->second.erase(kit);
+                modified_ = true;
+            }
+#endif
+        }
+    }
+
+    // Query:
+    [[nodiscard]]
+    bool SecExists(std::string_view section) const
+    { return cfg_.find(section) != cfg_.end(); }
+
+    [[nodiscard]]
+    bool KeyExists(std::string_view section, std::string_view key) const
+    {
+        if (auto sec_it = cfg_.find(section); sec_it != cfg_.end())
+            return sec_it->second.find(key) != sec_it->second.end();
+        return false;
+    }
+
+    // ranges (read-only):
+    [[nodiscard]]
+    section_range sections() const noexcept {
+        return std::ranges::subrange(cfg_.cbegin(), cfg_.cend());
+    }
+
+    [[nodiscard]]
+    key_range keys(std::string_view section) const noexcept {
+        if (auto it = cfg_.find(section); it != cfg_.end()) {
+            return std::ranges::subrange(it->second.cbegin(), it->second.cend());
+        }
+        static const TStrMap empty;
+        return std::ranges::subrange(empty.cbegin(), empty.cend());
+    }
+
+private:
+    static const char mark_{'#'};
+
+    TCfgMap     cfg_;
+    std::string srcfile_;
+    bool        readonly_  = true;
+    bool        modified_  = false;
+    char        separator_ = '=';
+
+    void parse_stream(std::istream& is);
+    void write_stream(std::ostream& os) const;
+
+    void check_writable() const
+    { if (readonly_) throw std::logic_error("cfgfile: instance is read-only"); }
+};

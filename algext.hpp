@@ -40,11 +40,6 @@
 
 // ==================== Concepts ====================
 
-#ifndef QQ_CONCEPT_Integer
-#define QQ_CONCEPT_Integer
-template <typename T> concept Integer = std::is_integral_v<T>;
-#endif
-
 #ifndef QQ_CONCEPT_Containers
 #define QQ_CONCEPT_Containers
 

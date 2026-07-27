@@ -65,7 +65,6 @@ public:
     //      the owned string.
     //    · Returns: a safe string_view for immediate output.
     // --------------------------------------------------------
-    [[nodiscard]]
     std::string_view add(std::string_view name, std::string_view data) {
         remove(name);
 

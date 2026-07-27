@@ -27,7 +27,6 @@
 #include <concepts>
 #include <charconv>
 #include <optional>
-#include <bitset>
 #include <set>
 #include <unordered_set>
 #include <stdexcept>
@@ -61,7 +60,7 @@ using TStrUoMSet = std::unordered_multiset<std::string>;
 using TStrPair = std::pair<std::string, std::string>;
 using TSvPair  = std::pair<std::string_view, std::string_view>;
 
-using TStrMap  = std::map<std::string, std::string>;
+using TStrMap  = std::map<std::string, std::string, std::less<>>;  // No need to construct a temp std::string for find("literal"sv)
 using TSvMap   = std::map<std::string_view, std::string_view>;
 using TStrMMap = std::multimap<std::string, std::string>;
 
@@ -75,11 +74,6 @@ extern const std::string SPACE_CHARS;
 #define  sv_found(pos) ((pos)!=std::string_view::npos)
 #define lefts(s,n)   ((s).substr(0,n))
 //#define leftsv(s,n)  ((s).substr(0,n))   // Since C++ 17
-
-#ifndef QQ_CONCEPT_Integer
-#define QQ_CONCEPT_Integer
-template <typename T> concept Integer = std::is_integral_v<T>;
-#endif
 
 //------------------------------------------------------------------------------------------------
 inline std::string_view  leftsv(std::string_view sv,     size_t n) noexcept { return sv.substr(0,n); }  // Since C++ 17
@@ -131,7 +125,7 @@ inline std::string& lcaserf(std::string& str) noexcept { std::transform(str.begi
 inline std::string& ucaserf(std::string& str) noexcept { std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) -> char {return static_cast<char>(std::toupper(c));}); return str; }
 
 enum SplitOption: uint8_t {TRIM=1<<0,NOEMPTY=1<<1};
-using SplitOptions = std::bitset<8>;
+using SplitOptions = uint8_t;
 template <typename T> class  spliti;
 template <typename T> class  splitiv;  // Deepseek version
 template <typename T> inline TStrVec& splits (TStrVec& dst, const std::string& src, T delimiters, SplitOptions opt=0) noexcept;
@@ -163,11 +157,11 @@ std::string genPassword(PasswordSecurityLevel level=PasswordSecurityLevel::MEDIU
 bool        chkPassword(std::string_view password, PasswordSecurityLevel level, size_t min_length=4);
 
 // Convert a string_view into an integer without error message and exception:
-template<Integer T> inline std::optional<T> str2int(std::string_view  sv, std::optional<T> minvalue={}, std::optional<T> maxvalue={}, int base=10) noexcept;
-template<Integer T> inline std::optional<T> str2int(const std::string& s, std::optional<T> minvalue={}, std::optional<T> maxvalue={}, int base=10) noexcept
+template<std::integral T = int> inline std::optional<T> str2int(std::string_view  sv, std::optional<T> minvalue={}, std::optional<T> maxvalue={}, int base=10) noexcept;
+template<std::integral T = int> inline std::optional<T> str2int(const std::string& s, std::optional<T> minvalue={}, std::optional<T> maxvalue={}, int base=10) noexcept
     { return str2int(std::string_view(s), minvalue, maxvalue, base); }
 
-template<Integer T> inline bool from_c_succ(const char* first, const char* last, T& value, int base=10) noexcept
+template<std::integral T = int> inline bool from_c_succ(const char* first, const char* last, T& value, int base=10) noexcept
     { auto [ptr,ec] = std::from_chars(first, last, value, base); return ec==std::errc{} && ptr==last; }
 
 //------------------------------------------------------------------------------------------------
@@ -304,8 +298,8 @@ TStrVec& splits(TStrVec& dst, const std::string& src, T delimiters, SplitOptions
             const bool is_end {nposs(end)};
             const size_t len {(is_end?src_len:end) - start};
             std::string s(data+start, len);
-            if( opt[SplitOption::TRIM-1] ) trimrf(s);
-            if( !s.empty() || !opt[SplitOption::NOEMPTY-1] ) dst.push_back(move(s));
+            if( opt & SplitOption::TRIM ) trimrf(s);
+            if( !s.empty() || !(opt & SplitOption::NOEMPTY) ) dst.push_back(move(s));
             if( is_end ) break;
             ++(start=end);
         }
@@ -325,8 +319,8 @@ TStrVec& splits(TStrVec& dst, const std::string& src, T delimiters, SplitOptions
             const bool is_end {nposs(end)};
             const size_t len {(is_end?src_len:end) - start};
             std::string s(data+start, len);
-            if( opt[SplitOption::TRIM-1] ) trimrf(s);
-            if( !s.empty() || !opt[SplitOption::NOEMPTY-1] ) dst.push_back(move(s));
+            if( opt & SplitOption::TRIM ) trimrf(s);
+            if( !s.empty() || !(opt & SplitOption::NOEMPTY) ) dst.push_back(move(s));
             if( is_end ) break;
             ++(start=end);
         }
@@ -370,8 +364,8 @@ TSvVec splitsv(std::string_view src, T delimiters, SplitOptions opt) noexcept
             const bool is_end  {npossv(end)};
             const size_t len {(is_end? src_len:end) - start};
             std::string_view sv(data+start, len);
-            if( opt[SplitOption::TRIM-1] ) trimsvrf(sv);
-            if( !sv.empty() || !opt[SplitOption::NOEMPTY-1] ) dst.push_back(sv);
+            if( opt & SplitOption::TRIM ) trimsvrf(sv);
+            if( !sv.empty() || !(opt & SplitOption::NOEMPTY) ) dst.push_back(sv);
             if( is_end ) break;
             ++(start=end);
         }
@@ -383,8 +377,8 @@ TSvVec splitsv(std::string_view src, T delimiters, SplitOptions opt) noexcept
             const bool is_end  {npossv(end)};
             const size_t len {(is_end? src_len:end) - start};
             std::string_view sv(data+start, len);
-            if( opt[SplitOption::TRIM-1] ) trimsvrf(sv);
-            if( !sv.empty() || !opt[SplitOption::NOEMPTY-1] ) dst.push_back(sv);
+            if( opt & SplitOption::TRIM ) trimsvrf(sv);
+            if( !sv.empty() || !(opt & SplitOption::NOEMPTY) ) dst.push_back(sv);
             if( is_end ) break;
             ++(start=end);
         }
@@ -711,7 +705,7 @@ std::string_view& rmcommsvrf(std::string_view& srcv, const char mark, bool itrim
 }
 
 //------------------------------------------------------------------------------------------------
-template<Integer T>
+template<std::integral T = int>
 std::optional<T> str2int(std::string_view sv, std::optional<T> minvalue, std::optional<T> maxvalue, int base) noexcept
 {
     if (sv.empty()) return std::nullopt;
