@@ -24,8 +24,8 @@
 using namespace std::string_literals;
 using namespace std::string_view_literals;
 
-const std::string EMPTY_STR{};
-const std::string SPACE_CHARS{" \t\n\r\f\v"s};
+//const std::string EMPTY_STR{};
+//const std::string SPACE_CHARS{" \t\n\r\f\v"s};
 
 //----------------------------------------------------------------------------------------------------
 // My version
@@ -92,54 +92,67 @@ std::string replall(std::string_view src, std::string_view sfind, std::string_vi
     return result;
 }
 //----------------------------------------------------------------------------------------
-std::string genPassword(PasswordSecurityLevel level, size_t length)
+std::string genPassword(PasswordSecurityLevel level, size_t length) noexcept
 {
-    const std::string lowercase    {"abcdefghijklmnopqrstuvwxyz"};
-    const std::string uppercase    {"ABCDEFGHIJKLMNOPQRSTUVWXYZ"};
-    const std::string digits       {"0123456789"};
-    const std::string specialChars {"!@#$%^&*()_+-=[]{}|;':\",./<>?"};
+    const std::string lowercase  { "abcdefghijklmnopqrstuvwxyz" };
+    const std::string uppercase  { "ABCDEFGHIJKLMNOPQRSTUVWXYZ" };
+    const std::string digits     { "0123456789" };
+    const std::string specials   { "!@#$%^&*()_+-=[]{}|;':\",./<>?" };
 
-    std::vector<std::string> required_charsets;
     std::string full_charset;
+    bool req_lower{}, req_upper{}, req_digit{}, req_special{};
 
     switch (level) {
         case PasswordSecurityLevel::LOW:
-            required_charsets = {lowercase, digits};
             full_charset = lowercase + digits;
+            req_lower = req_digit = true;
             break;
         case PasswordSecurityLevel::MEDIUM:
-            required_charsets = {lowercase, uppercase, digits};
             full_charset = lowercase + uppercase + digits;
+            req_lower = req_upper = req_digit = true;
             break;
         case PasswordSecurityLevel::HIGH:
         default:
-            required_charsets = {lowercase, uppercase, digits, specialChars};
-            full_charset = lowercase + uppercase + digits + specialChars;
+            full_charset = lowercase + uppercase + digits + specials;
+            req_lower = req_upper = req_digit = req_special = true;
+            break;
     }
 
-    const size_t min_length {required_charsets.size()};
+    // Ensure length is at least the number of required unique character types
+    size_t min_length = (req_lower ? 1 : 0) + (req_upper ? 1 : 0) +
+                        (req_digit ? 1 : 0) + (req_special ? 1 : 0);
     length = std::max(min_length, length);
 
-    static thread_local std::mt19937 gen(std::random_device{}());
+    // std::random_device is generally a CSPRNG on modern platforms (urandom/BCrypt)
+    // Strictly avoids std::mt19937 to prevent state-cloning attacks.
+    thread_local std::random_device crypto_gen;
+    std::uniform_int_distribution<size_t> dis(0, full_charset.size() - 1);
 
-    std::string password;
-    for (const auto& charset : required_charsets) {
-        std::uniform_int_distribution<size_t> dis(0, charset.size() - 1);
-        password += charset[dis(gen)];
+    // Rejection Sampling: Generate completely randomly, discard if constraints fail.
+    // Preserves perfect uniform entropy without introducing swap biases.
+    while (true) {
+        std::string password;
+        password.reserve(length);
+
+        bool has_l{}, has_u{}, has_d{}, has_s{};
+
+        for (size_t i = 0; i < length; ++i) {
+            char c = full_charset[dis(crypto_gen)];
+            password += c;
+
+            if (req_lower && lowercase.find(c) != std::string::npos) has_l = true;
+            else if (req_upper && uppercase.find(c) != std::string::npos) has_u = true;
+            else if (req_digit && digits.find(c) != std::string::npos) has_d = true;
+            else if (req_special && specials.find(c) != std::string::npos) has_s = true;
+        }
+
+        // Validate complexity. If it fails, the loop continues and discards the weak string.
+        if ((!req_lower || has_l) && (!req_upper || has_u) && (!req_digit || has_d) && (!req_special || has_s))
+            return password;
     }
-
-    if (length > min_length) {
-        std::uniform_int_distribution<size_t> dis(0, full_charset.size() - 1);
-        for (size_t i = min_length; i < length; ++i)
-            password += full_charset[dis(gen)];
-    }
-
-    std::shuffle(password.begin(), password.end(), gen);
-
-    return password;
 }
 //----------------------------------------------------------------------------------------
-bool chkPassword(std::string_view password, PasswordSecurityLevel level, size_t min_length)
+bool chkPassword(std::string_view password, PasswordSecurityLevel level, size_t min_length) noexcept
 {
     constexpr std::string_view specialChars {"!@#$%^&*()_+-=[]{}|;':\",./<>?"};
 
