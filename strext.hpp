@@ -36,6 +36,12 @@
 #include <cctype>
 #include <version>  // __cpp_lib_* macro
 
+#ifdef __cpp_lib_format
+#include <format>
+#else
+#include <cstdio>
+#endif
+
 #include "strjoin.hpp"
 #include "utf8_sv.hpp"
 
@@ -93,24 +99,23 @@ template <typename T2> inline std::string&  erase_left_at (std::string& src, T2 
 template <typename T2> inline std::string&  erase_right_at(std::string& src, T2 mark) noexcept;
 
 inline std::string_view rightsv(std::string_view sv, size_t n=std::string_view::npos) noexcept { n = std::min(n, sv.size()); return {sv.data() + sv.size() - n, n}; }
-inline std::string      rights (std::string_view sv, size_t n=std::string_view::npos) noexcept { return std::string(rightsv(sv)); }
 
 inline std::string_view ltrimsv(std::string_view sv) noexcept { return {std::find_if_not(sv.begin(), sv.end(), [](unsigned char c) {return std::isspace(c);}), sv.end()}; }
 inline std::string      ltrims (std::string_view sv) noexcept { return std::string(ltrimsv(sv)); }
 inline std::string&     ltrimrf(std::string& s)      noexcept { s.erase(s.begin(), std::find_if_not(s.begin(), s.end(), [](unsigned char c) {return std::isspace(c);})); return s; }
 
-inline std::string_view  rtrimsv(std::string_view sv)  noexcept { return {sv.begin(), std::find_if_not(sv.rbegin(), sv.rend(), [](unsigned char c) {return std::isspace(c);}).base()}; }
-inline std::string       rtrims (std::string_view sv)  noexcept { return std::string(rtrimsv(sv)); }
-inline std::string&      rtrimrf(std::string& s)       noexcept { s.erase(std::find_if_not(s.rbegin(), s.rend(), [](unsigned char c) {return std::isspace(c);}).base(), s.end()); return s; }
+inline std::string_view rtrimsv(std::string_view sv)  noexcept { return {sv.begin(), std::find_if_not(sv.rbegin(), sv.rend(), [](unsigned char c) {return std::isspace(c);}).base()}; }
+inline std::string      rtrims (std::string_view sv)  noexcept { return std::string(rtrimsv(sv)); }
+inline std::string&     rtrimrf(std::string& s)       noexcept { s.erase(std::find_if_not(s.rbegin(), s.rend(), [](unsigned char c) {return std::isspace(c);}).base(), s.end()); return s; }
 
-inline std::string       trims   (std::string_view sv) noexcept { return std::string(ltrimsv(rtrimsv(sv))); }
-inline std::string_view  trimsv  (std::string_view sv) noexcept { return ltrimsv(rtrimsv(sv)); }
-inline std::string&      trimrf  (std::string& src)    noexcept;
+inline std::string      trims   (std::string_view sv) noexcept { return std::string(ltrimsv(rtrimsv(sv))); }
+inline std::string_view trimsv  (std::string_view sv) noexcept { return ltrimsv(rtrimsv(sv)); }
+inline std::string&     trimrf  (std::string& src)    noexcept;
 
-inline std::string  lcases (std::string_view src) noexcept { std::string dst{}; dst.resize(src.size()); std::transform(src.cbegin(), src.cend(), dst.begin(), [](unsigned char c) noexcept -> char { return static_cast<char>(std::tolower(c)); }); return dst; }
-inline std::string  ucases (std::string_view src) noexcept { std::string dst{}; dst.resize(src.size()); std::transform(src.cbegin(), src.cend(), dst.begin(), [](unsigned char c) noexcept -> char { return static_cast<char>(std::toupper(c)); }); return dst; }
-inline std::string& lcaserf(std::string& str) noexcept { std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) -> char {return static_cast<char>(std::tolower(c));}); return str; }
-inline std::string& ucaserf(std::string& str) noexcept { std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) -> char {return static_cast<char>(std::toupper(c));}); return str; }
+inline std::string      lcases (std::string_view src) noexcept { std::string dst{}; dst.resize(src.size()); std::transform(src.cbegin(), src.cend(), dst.begin(), [](unsigned char c) noexcept -> char { return static_cast<char>(std::tolower(c)); }); return dst; }
+inline std::string      ucases (std::string_view src) noexcept { std::string dst{}; dst.resize(src.size()); std::transform(src.cbegin(), src.cend(), dst.begin(), [](unsigned char c) noexcept -> char { return static_cast<char>(std::toupper(c)); }); return dst; }
+inline std::string&     lcaserf(std::string& str) noexcept { std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) -> char {return static_cast<char>(std::tolower(c));}); return str; }
+inline std::string&     ucaserf(std::string& str) noexcept { std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) -> char {return static_cast<char>(std::toupper(c));}); return str; }
 
 enum SplitOption: uint8_t {TRIM=1<<0,NOEMPTY=1<<1};
 using SplitOptions = uint8_t;
@@ -144,6 +149,19 @@ template<std::integral T = int> inline std::optional<T> str2int(std::string_view
 
 template<std::integral T = int> inline bool from_c_succ(const char* first, const char* last, T& value, int base=10) noexcept
     { auto [ptr,ec] = std::from_chars(first, last, value, base); return ec==std::errc{} && ptr==last; }
+
+// Format a character:
+#ifdef __cpp_lib_format
+#define fmt_char(dest, pattern1, pattern2, c) \
+        dest += std::format(pattern1, static_cast<unsigned int>(static_cast<unsigned char>(c)))
+#else
+inline void fmt_char(std::string& dest, const char* pattern1, const char* pattern2, char c) {
+    (void)pattern1;
+    char buf[16];
+    int n = std::snprintf(buf, sizeof(buf), pattern2, c);
+    dest.append(buf, static_cast<std::size_t>(n));
+}
+#endif
 
 //------------------------------------------------------------------------------------------------
 // Deepseek version
@@ -452,16 +470,19 @@ std::string_view rmcommsv(std::string_view srcv, const char mark, bool itrim) no
 }
 
 //------------------------------------------------------------------------------------------------
-template<std::integral T = int>
+// Caution: Definition of template function is NOT the same as declaration in format
+template<std::integral T>
 std::optional<T> str2int(std::string_view sv, std::optional<T> minvalue, std::optional<T> maxvalue, int base) noexcept
 {
     if (sv.empty()) return std::nullopt;
 
     T value{};
-    return ( !from_c_succ(sv.data(), sv.data()+sv.size(), value, base)
+    if ( !from_c_succ(sv.data(), sv.data()+sv.size(), value, base)
         || (minvalue.has_value() && value < minvalue.value())
         || (maxvalue.has_value() && value > maxvalue.value())
-    )? std::nullopt : value;
+    ) return std::nullopt;
+
+    return value;
 }
 
 // -----------------------------------------------------------------------------

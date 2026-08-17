@@ -27,7 +27,11 @@ namespace fcgiext {
 using namespace std::string_literals;
 using namespace std::string_view_literals;
 
-//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------
+// @note All string_view members are valid only within the lifetime of
+//       the FCGX_Request passed to the constructor. Do NOT store rparser
+//       beyond a single request cycle.
+//
 class rparser {		// Request parser and escape
 private:
     constexpr static const char* QUERY_STRING   {"QUERY_STRING"};
@@ -51,38 +55,30 @@ protected:
         return u.empty()? root_char : u;
     }
 
+    // 剥离SERVER_NAME两端可能的IPv6的'['']'
+    [[nodiscard]] std::string_view server_() const {
+        auto s = env(SERVER_NAME);
+        if (s.size() >= 2 && s.front() == '[' && s.back() == ']') {
+            s.remove_prefix(1), s.remove_suffix(1);
+        }
+        return s;
+    }
+
     // 由已初始化的4个部分组成本服务器标准URL，最后一个字符一定是'/'
     // 若前端使用了逆向代理配置了ProxyPassReverse，则302/301都可以被客户端浏览器正常访问
     [[nodiscard]] std::string baseurl_() const {
-        auto s = scheme;
-        auto p = port;
-
+        bool is_def_port = (scheme == "http"sv && port == "80"sv) || (scheme == "https"sv && port == "443"sv);
+        std::string t_server {server.find(':') == std::string::npos? std::string(server) : "["s+std::string(server)+"]"s};    // IPv6
 #ifdef __cpp_lib_format
-        // Fast path: C++20 std::format is available
-        if ((s == "http"sv && p == "80"sv) || (s == "https"sv && p == "443"sv))
-            return std::format("{}://{}{}", s, server, basepath);
-        return std::format("{}://{}:{}{}", s, server, p, basepath);
+        std::string port_str {is_def_port? "" : std::format(":{}", port)};
+        return std::format("{}://{}{}{}", scheme, t_server, port_str, basepath);
 #else
-        // Fallback path: standard string concatenation
-        std::string bu(s); bu.append("://"); bu.append(server);
-
-        if (!((s == "http"sv && p == "80"sv) || (s == "https"sv && p == "443"sv))) {
-            bu.append(":");
-            bu.append(p);
-        }
+        std::string bu(scheme); bu.append("://"); bu.append(t_server);
+        if (!is_def_port) { bu.append(":"); bu.append(port); }
         bu.append(basepath);
         return bu;
 #endif
     }
-
-    // 资源名
-    // 例如：REQUEST_URI=/app-prj/fcgi/buy?question=what?&id=1008&nickname=%E5%B0%8F%E6%98%8E&goods=%5B%7B%22id%22%3A1%2C%22num%22%3A2%7D%5D
-    // 返回：buy
-    // 例如：REQUEST_URI=/app-prj/fcgi/
-    // 返回：空
-    //[[nodiscard]] std::string_view docname_() const {
-    //    return right_of_from_tail(left_of(env(REQUEST_URI),'?',false), '/');
-    //}
 
 public:
     TStrMap query;       // 分解的QUERY_STRING，decode
@@ -105,35 +101,35 @@ public:
     explicit rparser(FCGX_Request& request):
                 rq_(request),
                 scheme(env(REQUEST_SCHEME)),
-                server(env(SERVER_NAME)),
+                server(server_()),
                 port  (env(SERVER_PORT)),
-                docname(right_of_from_tail(left_of(env(REQUEST_URI),'?',false), '/')),
                 basepath(basepath_()),
+                docname(right_of_from_tail(left_of(env(REQUEST_URI),'?',false), '/')),
                 baseurl(baseurl_())
     {
         // Split QUERY_STRING safely:
         // QUERY_STRING=uid=1008&nickname=%E5%B0%8F%E6%98%8E&goods=%5B%7B%22id%22%3A1%2C%22num%22%3A2%7D%5D
-        for( const auto& kv: splitsv(env(QUERY_STRING), '&') ) {
+        for( const auto& kv: splitsv(env(QUERY_STRING), '&', SplitOption::NOEMPTY) ) {  // 参数中可能会出现畸形两个连在一起的"&&"
             auto [k, v] = splitpairsv(kv, '=', false);
             query[urldecode(k)] = urldecode(v);
         }
 
-        // Split HTTP_COOKIE safely:
-        // 1. 分隔符：键值对之间分号+空格，不能只用分号。
+        // Split HTTP_COOKIE:
+        // 1. 分隔符：RFC 6265规定分隔符是"; "，但实际浏览器实现中也可能只发 ";"。
         // 2. 格式：key=value，无空格，不允许多余引号。
-        // 3. 可能含有UNICODE或URL编码。
-        // 4. 可能含有XSS攻击代码。
+        // 3. 可能含有UNICODE或URL编码，此处做解码处理。
+        // 4. 可能含有XSS攻击代码，此处不处理。
         // user_id=10086; token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9; sessionid=s987654321abcdef; theme=dark; remember_me=1; city=jinan; nickname=%E5%B0%8F%E6%98%8E; goods_cart=%5B%7B%22id%22%3A1%2C%22num%22%3A2%7D%5D; expires_time=1789023456
-        for( const auto& kv: splitsv(env(HTTP_COOKIE), ';') ) {
-            auto [k, v] = splitpairsv(kv, '=');
-            cookie[urldecode(k)] = urldecode(v);
+        for( const auto& kv : splitsv(env(HTTP_COOKIE), ';', SplitOption::TRIM | SplitOption::NOEMPTY) ) {
+            auto [k, v] = splitpairsv(kv, '=', false);
+            if( !k.empty() ) cookie[urldecode(k)] = urldecode(v);
         }
     }
 
     rparser()                          = delete;
     rparser(const rparser&)            = delete;
-    rparser& operator=(const rparser&) = delete;
     rparser(rparser&&)                 = delete;
+    rparser& operator=(const rparser&) = delete;
     rparser& operator=(rparser&&)      = delete;
 };
 

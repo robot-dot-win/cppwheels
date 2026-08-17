@@ -18,19 +18,15 @@
 
 #pragma once
 
-#include <functional>
 #include <string>
 #include <string_view>
-#include <unordered_map>
-#include <charconv>
-#include <cctype>
-#include <variant>
 
-#ifdef __cpp_lib_format
-#include <format>   // Available when __GNUC__ >= 13
-#else
-#include <cstdio>   // Fallback: std::snprintf
-#endif
+inline std::string urlencode(std::string_view src);
+inline std::string urldecode(std::string_view src, bool plus_as_space = true);
+
+#include "strext.hpp"
+#include "httpurl.hpp"
+#include "htmlescape.hpp"
 
 //------------------------------------------------------------------------
 // Alternatives to urldecode and urlencode:
@@ -72,48 +68,15 @@
 //    }
 //------------------------------------------------------------------------
 
-// --------------------------------------------------------
-// urldecode: High-performance URL decoding
-// --------------------------------------------------------
-inline std::string urldecode(std::string_view src)
-{
-    std::string result;
-    // Pre-allocate memory. The decoded string will never be longer than the source.
-    result.reserve(src.size());
-
-    const char* p = src.data();
-    const char* end = p + src.size();
-
-    while (p < end) {
-        if (*p == '%') {
-            if (p + 2 < end) {
-                unsigned int value{};
-                auto [ptr, ec] = std::from_chars(p + 1, p + 3, value, 16);
-                if (ec == std::errc{}) {
-                    result.push_back(static_cast<char>(value));
-                    p += 3;
-                    continue;
-                }
-            }
-            // If the % sequence is malformed, treat it as a literal '%' (Resilience)
-            result.push_back(*p++);
-        } else if (*p == '+') {
-            // 'application/x-www-form-urlencoded' standardizes '+' as a space
-            result.push_back(' ');
-            p++;
-        } else result.push_back(*p++);
-    }
-    return result;
-}
-
-// --------------------------------------------------------
+//------------------------------------------------------------------------
 // urlencode: Strict RFC 3986 encoding
-// --------------------------------------------------------
-inline std::string urlencode(std::string_view src)
+//
+std::string urlencode(std::string_view src)
 {
     std::string result;
     // Heuristic pre-allocation: Assume ~20% of the string might need encoding
-    result.reserve(src.size() + (src.size() / 5));
+    // result.reserve(src.size() + (src.size() / 5));
+    result.reserve(src.size() * 3);  // sufficient for UTF8 encoded unicode
 
     // Extremely fast lookup table for hex conversions
     constexpr char hex_chars[] = "0123456789ABCDEF";
@@ -135,81 +98,39 @@ inline std::string urlencode(std::string_view src)
 }
 
 //------------------------------------------------------------------------
-// HTML转义函数智能返回类型：根据是否转义，自动选择零拷贝 (View) 或独占内存 (String)
+// urldecode: High-performance URL decoding
 //
-class HtmlEscapedStr {
-private:
-    std::variant<std::string_view, std::string> data_;
-
-public:
-    explicit HtmlEscapedStr(std::string_view sv) : data_(sv) {}
-    explicit HtmlEscapedStr(std::string&& s) : data_(std::move(s)) {}
-
-    operator std::string_view() const noexcept {
-        if (auto* sv = std::get_if<std::string_view>(&data_)) return *sv;
-        if (auto* s = std::get_if<std::string>(&data_)) return *s;
-        return {};
-    }
-
-    std::string to_string() const { return std::string(operator std::string_view()); }
-};
-
-//------------------------------------------------------------------------
-// 高性能 HTML 转义函数
+// plus_as_space  true:  for application/x-www-form-urlencoded
+//                false: for path segment
 //
-// 用法 1：直接输出 (触发隐式转换 operator std::string_view)
-//        std::cout << htmlesc(textsv);
-// 用法 2：强制获取 std::string
-//        std::string final_str = htmlesc(textsv).to_string();
-//
-inline HtmlEscapedStr htmlesc(std::string_view src, std::string_view special_chars = "&<>\"'")
+std::string urldecode(std::string_view src, bool plus_as_space)
 {
-    if (src.empty()) return HtmlEscapedStr(src);
-
-    // 1. 第一阶段：极速扫描 (SIMD 加速)
-    // 如果没有找到任何特殊字符，直接返回原 View，真正做到 0 分配 0 拷贝！
-    size_t first_pos = src.find_first_of(special_chars);
-    if (first_pos == std::string_view::npos) return HtmlEscapedStr(src);
-
-    // 2. 第二阶段：不可避免地发生转义，进入内存分配模式
     std::string result;
-    // 经验预分配：假设只有少量字符被转义，减少动态扩容开销
-    result.reserve(src.size() + (src.size() / 8));
+    // Pre-allocate memory. The decoded string will never be longer than the source.
+    result.reserve(src.size());
 
-    // 将扫描到的第一段安全字符直接塞进去
-    result.append(src.data(), first_pos);
+    const char* p = src.data();
+    const char* end = p + src.size();
 
-    size_t pos = first_pos;
-    while (pos < src.size()) {
-        char c = src[pos];
-        switch (c) {
-        case '&':  result += "&amp;";  break;
-        case '<':  result += "&lt;";   break;
-        case '>':  result += "&gt;";   break;
-        case '"':  result += "&quot;"; break;
-        case '\'': result += "&#39;";  break;
-        default:
-#ifdef __cpp_lib_format
-            result += std::format("&#x{:02X};", static_cast<unsigned char>(c));
-#else
-            char buf[16];
-            int n = std::snprintf(buf, sizeof(buf), "&#x%02X;", static_cast<unsigned char>(c));
-            result.append(buf, static_cast<std::size_t>(n));
-#endif
-        }
-
-        pos++;
-
-        // 查找下一段安全文本
-        size_t next_pos = src.find_first_of(special_chars, pos);
-        if (next_pos == std::string_view::npos) {
-            result.append(src.data() + pos, src.size() - pos);
-            break;
-        }
-        result.append(src.data() + pos, next_pos - pos);
-        pos = next_pos;
+    while (p < end) {
+        if (*p == '%') {
+            if (p + 2 < end) {
+                unsigned int value{};
+                auto [ptr, ec] = std::from_chars(p + 1, p + 3, value, 16);
+                if (ec == std::errc{}) {
+                    result.push_back(static_cast<char>(value));
+                    p += 3;
+                    continue;
+                }
+            }
+            // If the % sequence is malformed, treat it as a literal '%' (Resilience)
+            result.push_back(*p++);
+        } else if (plus_as_space && *p == '+') {
+            result.push_back(' ');
+            p++;
+        } else result.push_back(*p++);
     }
-
-    return HtmlEscapedStr(std::move(result));
+    return result;
 }
+
 //------------------------------------------------------------------------
