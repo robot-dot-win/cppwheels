@@ -47,19 +47,43 @@ public:
     }
 
     ip4(std::string_view sv);
-    ip4(const std::string& sa) { ip4(std::string_view(sa)); }
-    ip4(const char* pa): ip4(pa ? std::string(pa) : throw std::invalid_argument("Null IPv4 string")) {}
+    ip4(const char* pa): ip4(pa ? std::string_view{pa} : throw std::invalid_argument("Null IPv4 string")) {}
 
           uint8_t& operator[](size_t n)       { return ba_[ip4_byte_index(n)]; }
     const uint8_t& operator[](size_t n) const { return ba_[ip4_byte_index(n)]; }
 
     [[nodiscard]] uint32_t get_aa() const noexcept { return aa; }
 
+    // Readable version:
+    //[[nodiscard]] std::string sa() const {
+    //    return std::to_string((*this)[0]) + "." +
+    //           std::to_string((*this)[1]) + "." +
+    //           std::to_string((*this)[2]) + "." +
+    //           std::to_string((*this)[3]);
+    //}
+    // High performance version:
     [[nodiscard]] std::string sa() const {
-        return std::to_string((*this)[0]) + "." +
-               std::to_string((*this)[1]) + "." +
-               std::to_string((*this)[2]) + "." +
-               std::to_string((*this)[3]);
+        char buf[16];
+        char* p = buf;
+        auto write_octet_safe = [&p](uint8_t val) noexcept {
+            if (val >= 100) {
+                *p++ = static_cast<char>('0' + val / 100);
+                *p++ = static_cast<char>('0' + (val % 100) / 10);
+                *p++ = static_cast<char>('0' + val % 10);
+            } else if (val >= 10) {
+                *p++ = static_cast<char>('0' + val / 10);
+                *p++ = static_cast<char>('0' + val % 10);
+            } else {
+                *p++ = static_cast<char>('0' + val);
+            }
+        };
+
+        write_octet_safe(ba_[ip4_byte_index(0)]); *p++ = '.';
+        write_octet_safe(ba_[ip4_byte_index(1)]); *p++ = '.';
+        write_octet_safe(ba_[ip4_byte_index(2)]); *p++ = '.';
+        write_octet_safe(ba_[ip4_byte_index(3)]);
+
+        return std::string(buf, p - buf);
     }
 
     auto operator<=>(const ip4& other) const noexcept { return aa <=> other.aa; }   // Since C++ 20
@@ -84,10 +108,6 @@ public:
     ip4& operator <<=(uint8_t nbit) noexcept { aa=(uint64_t)aa<<nbit; return *this; }
 
     // Validate and assign ip4 value, ingoring exceptions
-    [[nodiscard]] bool vali(const std::string& sa) noexcept {
-        try { *this = ip4(sa); } catch(...) { return false; }
-        return true;
-    }
     [[nodiscard]] bool vali(std::string_view sv) noexcept {
         try { *this = ip4(sv); } catch(...) { return false; }
         return true;
@@ -110,8 +130,7 @@ public:
     // ips: "ip[/mask]", e.g. "192.168.0.6" "192.168.0.8/26" "192.168.0.8/255.255.255.192"
     //      When "/bits" is omitted, mask defaults to 32.
     explicit ip4net(std::string_view ipsv);
-    explicit ip4net(const std::string& ips) { ip4net(std::string_view(ips)); }
-    explicit ip4net(const char* ipc) { ipc? *this=ip4net(std::string(ipc)) : throw std::invalid_argument("NULL IPv4 net string."); }
+    explicit ip4net(const char* ipc) { ipc? *this=ip4net(std::string_view{ipc}) : throw std::invalid_argument("NULL IPv4 net string."); }
 
     [[nodiscard]] uint8_t nmask() const { return mask_; }
     [[nodiscard]] ip4 addr()      const { return address_; }
@@ -125,10 +144,6 @@ public:
         return true;
     }
     [[nodiscard]] bool vali(std::string_view ips) noexcept {
-        try { *this = ip4net(ips); } catch(...) { return false; }
-        return true;
-    }
-    [[nodiscard]] bool vali(const std::string& ips) noexcept {
         try { *this = ip4net(ips); } catch(...) { return false; }
         return true;
     }
