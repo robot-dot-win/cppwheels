@@ -85,37 +85,37 @@ using TStrMMap = std::multimap<std::string, std::string>;
 #define  sv_found(pos) ((pos)!=std::string_view::npos)
 
 //------------------------------------------------------------------------------------------------
-constexpr inline std::string_view left_of (std::string_view src, const char mark,       bool return_empty_if_not_found=true, bool including_mark=false) noexcept;
-constexpr inline std::string_view left_of (std::string_view src, std::string_view mark, bool return_empty_if_not_found=true, bool including_mark=false) noexcept;
-constexpr inline std::string_view right_of(std::string_view src, const char mark,       bool return_empty_if_not_found=true, bool including_mark=false) noexcept;
-constexpr inline std::string_view right_of(std::string_view src, std::string_view mark, bool return_empty_if_not_found=true, bool including_mark=false) noexcept;
+constexpr std::string_view left_of (std::string_view src, const char mark,       bool return_empty_if_not_found=true, bool including_mark=false) noexcept;
+constexpr std::string_view left_of (std::string_view src, std::string_view mark, bool return_empty_if_not_found=true, bool including_mark=false) noexcept;
+constexpr std::string_view right_of(std::string_view src, const char mark,       bool return_empty_if_not_found=true, bool including_mark=false) noexcept;
+constexpr std::string_view right_of(std::string_view src, std::string_view mark, bool return_empty_if_not_found=true, bool including_mark=false) noexcept;
 
-constexpr inline std::string_view left_of_from_tail (std::string_view src,       const char mark, bool return_empty_if_not_found=true, bool including_mark=false) noexcept;
-constexpr inline std::string_view left_of_from_tail (std::string_view src, std::string_view mark, bool return_empty_if_not_found=true, bool including_mark=false) noexcept;
-constexpr inline std::string_view right_of_from_tail(std::string_view src,       const char mark, bool return_empty_if_not_found=true, bool including_mark=false) noexcept;
-constexpr inline std::string_view right_of_from_tail(std::string_view src, std::string_view mark, bool return_empty_if_not_found=true, bool including_mark=false) noexcept;
+constexpr std::string_view left_of_from_tail (std::string_view src,       const char mark, bool return_empty_if_not_found=true, bool including_mark=false) noexcept;
+constexpr std::string_view left_of_from_tail (std::string_view src, std::string_view mark, bool return_empty_if_not_found=true, bool including_mark=false) noexcept;
+constexpr std::string_view right_of_from_tail(std::string_view src,       const char mark, bool return_empty_if_not_found=true, bool including_mark=false) noexcept;
+constexpr std::string_view right_of_from_tail(std::string_view src, std::string_view mark, bool return_empty_if_not_found=true, bool including_mark=false) noexcept;
 
 template <typename T2> inline std::string&  erase_left_at (std::string& src, T2 mark) noexcept;
 template <typename T2> inline std::string&  erase_right_at(std::string& src, T2 mark) noexcept;
 
-inline std::string_view rightsv(std::string_view sv, size_t n=std::string_view::npos) noexcept { n = std::min(n, sv.size()); return {sv.data() + sv.size() - n, n}; }
+constexpr std::string_view rightsv(std::string_view sv, size_t n=std::string_view::npos) noexcept { n = std::min(n, sv.size()); return {sv.data() + sv.size() - n, n}; }
 
-inline std::string_view ltrimsv(std::string_view sv) noexcept { return {std::find_if_not(sv.begin(), sv.end(), [](unsigned char c) {return std::isspace(c);}), sv.end()}; }
-inline std::string      ltrims (std::string_view sv) noexcept { return std::string(ltrimsv(sv)); }
-inline std::string&     ltrimrf(std::string& s)      noexcept { s.erase(s.begin(), std::find_if_not(s.begin(), s.end(), [](unsigned char c) {return std::isspace(c);})); return s; }
+constexpr std::string_view ltrimsv(std::string_view sv) noexcept { return {std::find_if_not(sv.begin(), sv.end(), [](unsigned char c) {return std::isspace(c);}), sv.end()}; }
+inline    std::string      ltrims (std::string_view sv) noexcept { return std::string(ltrimsv(sv)); }
+inline    std::string&     ltrimrf(std::string& s)      noexcept { s.erase(s.begin(), std::find_if_not(s.begin(), s.end(), [](unsigned char c) {return std::isspace(c);})); return s; }
 
-inline std::string_view rtrimsv(std::string_view sv)  noexcept { return {sv.begin(), std::find_if_not(sv.rbegin(), sv.rend(), [](unsigned char c) {return std::isspace(c);}).base()}; }
-inline std::string      rtrims (std::string_view sv)  noexcept { return std::string(rtrimsv(sv)); }
-inline std::string&     rtrimrf(std::string& s)       noexcept { s.erase(std::find_if_not(s.rbegin(), s.rend(), [](unsigned char c) {return std::isspace(c);}).base(), s.end()); return s; }
+constexpr std::string_view rtrimsv(std::string_view sv)  noexcept { return {sv.begin(), std::find_if_not(sv.rbegin(), sv.rend(), [](unsigned char c) {return std::isspace(c);}).base()}; }
+inline    std::string      rtrims (std::string_view sv)  noexcept { return std::string(rtrimsv(sv)); }
+inline    std::string&     rtrimrf(std::string& s)       noexcept { s.erase(std::find_if_not(s.rbegin(), s.rend(), [](unsigned char c) {return std::isspace(c);}).base(), s.end()); return s; }
 
-inline std::string      trims   (std::string_view sv) noexcept { return std::string(ltrimsv(rtrimsv(sv))); }
-inline std::string_view trimsv  (std::string_view sv) noexcept { return ltrimsv(rtrimsv(sv)); }
-inline std::string&     trimrf  (std::string& src)    noexcept;
+constexpr std::string_view trimsv  (std::string_view sv) noexcept { return ltrimsv(rtrimsv(sv)); }
+inline    std::string      trims   (std::string_view sv) noexcept { return std::string(ltrimsv(rtrimsv(sv))); }
+inline    std::string&     trimrf  (std::string& src)    noexcept;
 
-inline std::string      lcases (std::string_view src) noexcept { std::string dst{}; dst.resize(src.size()); std::transform(src.cbegin(), src.cend(), dst.begin(), [](unsigned char c) noexcept -> char { return static_cast<char>(std::tolower(c)); }); return dst; }
-inline std::string      ucases (std::string_view src) noexcept { std::string dst{}; dst.resize(src.size()); std::transform(src.cbegin(), src.cend(), dst.begin(), [](unsigned char c) noexcept -> char { return static_cast<char>(std::toupper(c)); }); return dst; }
-inline std::string&     lcaserf(std::string& str) noexcept { std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) -> char {return static_cast<char>(std::tolower(c));}); return str; }
-inline std::string&     ucaserf(std::string& str) noexcept { std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) -> char {return static_cast<char>(std::toupper(c));}); return str; }
+inline std::string  lcases (std::string_view src) noexcept { std::string dst{}; dst.resize(src.size()); std::transform(src.cbegin(), src.cend(), dst.begin(), [](unsigned char c) noexcept -> char { return static_cast<char>(std::tolower(c)); }); return dst; }
+inline std::string  ucases (std::string_view src) noexcept { std::string dst{}; dst.resize(src.size()); std::transform(src.cbegin(), src.cend(), dst.begin(), [](unsigned char c) noexcept -> char { return static_cast<char>(std::toupper(c)); }); return dst; }
+inline std::string& lcaserf(std::string& str) noexcept { std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) -> char {return static_cast<char>(std::tolower(c));}); return str; }
+inline std::string& ucaserf(std::string& str) noexcept { std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) -> char {return static_cast<char>(std::toupper(c));}); return str; }
 
 enum SplitOption: uint8_t {TRIM=1<<0,NOEMPTY=1<<1};
 using SplitOptions = uint8_t;
@@ -131,10 +131,10 @@ template <typename T> inline TSvPair splitpairsv(std::string_view src, T separat
 inline std::string& replall(std::string& src, const char cfind, const char cwith) noexcept { std::replace(src.begin(),src.end(),cfind,cwith); return src; }
 
 // Remove trailing comment started by the most right character mark, eg. '#' or ';'
-inline std::string_view  rmcommsv  (std::string_view  srcv, const char mark='#', bool itrim=true) noexcept;
+constexpr std::string_view  rmcommsv  (std::string_view  srcv, const char mark='#', bool itrim=true) noexcept;
 
 // string_view windows scanning marked by left and right marks:
-template <typename T1, typename T2> inline std::string_view lrmarksv (std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos=0) noexcept;
+template <typename T1, typename T2> constexpr std::string_view lrmarksv (std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos=0) noexcept;
 template <typename T1, typename T2> inline TSvVec           strwinsvv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos=0) noexcept;
 template <typename T1, typename T2> class strwinsv;
 inline TSvVec multiwinsvv(std::string_view sv, const std::vector<TSvPair> lrmarks, size_t begin_pos=0) noexcept;
@@ -391,7 +391,7 @@ public:
 
 //------------------------------------------------------------------------------------------------
 template <typename T1, typename T2>
-std::string_view lrmarksv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos) noexcept
+constexpr std::string_view lrmarksv(std::string_view sv, T1 leftmark, T2 rightmark, size_t begin_pos) noexcept
 {
     auto findmark = [&sv](auto mark, size_t pos) {
         if constexpr (std::is_same_v<decltype(mark), char>)
@@ -460,7 +460,7 @@ TSvPair splitpairsv(std::string_view src, T separator, bool itrim) noexcept
 //------------------------------------------------------------------------------------------------
 // If the first char is mark, the whole string is comment, otherwise the comment is from the most
 // right mark char to the end of the string.
-std::string_view rmcommsv(std::string_view srcv, const char mark, bool itrim) noexcept
+constexpr std::string_view rmcommsv(std::string_view srcv, const char mark, bool itrim) noexcept
 {
     if( itrim ) srcv = trimsv(srcv);
     if( srcv.empty() || srcv[0]==mark ) return {};
@@ -486,14 +486,14 @@ std::optional<T> str2int(std::string_view sv, std::optional<T> minvalue, std::op
 }
 
 // -----------------------------------------------------------------------------
-constexpr inline std::string_view left_of(std::string_view src, const char mark, bool return_empty_if_not_found, bool including_mark) noexcept
+constexpr std::string_view left_of(std::string_view src, const char mark, bool return_empty_if_not_found, bool including_mark) noexcept
 {
     if (const size_t pos = src.find(mark); pos != std::string_view::npos) {
         return src.substr(0, including_mark ? pos + 1 : pos);
     }
     return return_empty_if_not_found ? std::string_view{} : src;
 }
-constexpr inline std::string_view left_of(std::string_view src, std::string_view mark, bool return_empty_if_not_found, bool including_mark) noexcept
+constexpr std::string_view left_of(std::string_view src, std::string_view mark, bool return_empty_if_not_found, bool including_mark) noexcept
 {
     if (const size_t pos = src.find(mark); pos != std::string_view::npos) {
         return src.substr(0, including_mark ? pos + mark.size() : pos);
@@ -502,14 +502,14 @@ constexpr inline std::string_view left_of(std::string_view src, std::string_view
 }
 
 // -----------------------------------------------------------------------------
-constexpr inline std::string_view right_of(std::string_view src, const char mark, bool return_empty_if_not_found, bool including_mark) noexcept
+constexpr std::string_view right_of(std::string_view src, const char mark, bool return_empty_if_not_found, bool including_mark) noexcept
 {
     if (const size_t pos = src.find(mark); pos != std::string_view::npos) {
         return src.substr(including_mark ? pos : pos + 1);
     }
     return return_empty_if_not_found ? std::string_view{} : src;
 }
-constexpr inline std::string_view right_of(std::string_view src, std::string_view mark, bool return_empty_if_not_found, bool including_mark) noexcept
+constexpr std::string_view right_of(std::string_view src, std::string_view mark, bool return_empty_if_not_found, bool including_mark) noexcept
 {
     if (const size_t pos = src.find(mark); pos != std::string_view::npos) {
         return src.substr(including_mark ? pos : pos + mark.size());
@@ -517,14 +517,14 @@ constexpr inline std::string_view right_of(std::string_view src, std::string_vie
     return return_empty_if_not_found ? std::string_view{} : src;
 }
 // -----------------------------------------------------------------------------
-constexpr inline std::string_view left_of_from_tail(std::string_view src, const char mark, bool return_empty_if_not_found, bool including_mark) noexcept
+constexpr std::string_view left_of_from_tail(std::string_view src, const char mark, bool return_empty_if_not_found, bool including_mark) noexcept
 {
     if (const size_t pos = src.rfind(mark); pos != std::string_view::npos) {
         return src.substr(0, including_mark ? pos + 1 : pos);
     }
     return return_empty_if_not_found ? std::string_view{} : src;
 }
-constexpr inline std::string_view left_of_from_tail(std::string_view src, std::string_view mark, bool return_empty_if_not_found, bool including_mark) noexcept
+constexpr std::string_view left_of_from_tail(std::string_view src, std::string_view mark, bool return_empty_if_not_found, bool including_mark) noexcept
 {
     if (const size_t pos = src.rfind(mark); pos != std::string_view::npos) {
         return src.substr(0, including_mark ? pos + mark.size() : pos);
@@ -533,14 +533,14 @@ constexpr inline std::string_view left_of_from_tail(std::string_view src, std::s
 }
 
 // -----------------------------------------------------------------------------
-constexpr inline std::string_view right_of_from_tail(std::string_view src, const char mark, bool return_empty_if_not_found, bool including_mark) noexcept
+constexpr std::string_view right_of_from_tail(std::string_view src, const char mark, bool return_empty_if_not_found, bool including_mark) noexcept
 {
     if (const size_t pos = src.rfind(mark); pos != std::string_view::npos) {
         return src.substr(including_mark ? pos : pos + 1);
     }
     return return_empty_if_not_found ? std::string_view{} : src;
 }
-constexpr inline std::string_view right_of_from_tail(std::string_view src, std::string_view mark, bool return_empty_if_not_found, bool including_mark) noexcept
+constexpr std::string_view right_of_from_tail(std::string_view src, std::string_view mark, bool return_empty_if_not_found, bool including_mark) noexcept
 {
     if (const size_t pos = src.rfind(mark); pos != std::string_view::npos) {
         return src.substr(including_mark ? pos : pos + mark.size());
