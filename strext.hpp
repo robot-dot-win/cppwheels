@@ -95,8 +95,8 @@ constexpr std::string_view left_of_from_tail (std::string_view src, std::string_
 constexpr std::string_view right_of_from_tail(std::string_view src,       const char mark, bool return_empty_if_not_found=true, bool including_mark=false) noexcept;
 constexpr std::string_view right_of_from_tail(std::string_view src, std::string_view mark, bool return_empty_if_not_found=true, bool including_mark=false) noexcept;
 
-template <typename T2> inline std::string&  erase_left_at (std::string& src, T2 mark) noexcept;
-template <typename T2> inline std::string&  erase_right_at(std::string& src, T2 mark) noexcept;
+template <typename T2> inline std::string&  erase_left_at (std::string& src, T2 mark, bool including_mark=true) noexcept;
+template <typename T2> inline std::string&  erase_right_at(std::string& src, T2 mark, bool including_mark=true) noexcept;
 
 constexpr std::string_view rightsv(std::string_view sv, size_t n=std::string_view::npos) noexcept { n = std::min(n, sv.size()); return {sv.data() + sv.size() - n, n}; }
 
@@ -550,26 +550,42 @@ constexpr std::string_view right_of_from_tail(std::string_view src, std::string_
 
 //------------------------------------------------------------------------------------------------
 template <typename T2>
-std::string& erase_left_at (std::string& src, T2 mark) noexcept
+inline std::string& erase_left_at(std::string& src, T2 mark, bool including_mark) noexcept
 {
-    const size_t lpos {src.find(mark)};
-    if( nposs(lpos) ) return src;
+    const size_t pos {src.find(mark)};
+    if (nposs(pos)) return src;
 
-    size_t mark_size{1};
-    if constexpr (!std::is_same_v<std::remove_cv_t<T2>, char>)
-        mark_size = std::string_view(mark).size();
+    size_t erase_len {pos};
+    if (including_mark) {
+        if constexpr (std::is_same_v<std::remove_cv_t<T2>, char>)
+            erase_len += 1;
+        else
+            erase_len += std::string_view(mark).size();
+    }
 
-    if( lpos+mark_size==src.size() ) src.clear();
-    else src.erase(0, lpos+mark_size);
+    if (erase_len >= src.size())
+        src.clear();
+    else
+        src.erase(0, erase_len);
 
     return src;
 }
 //------------------------------------------------------------------------------------------------
 template <typename T2>
-std::string&  erase_right_at(std::string& src, T2 mark) noexcept
+inline std::string& erase_right_at(std::string& src, T2 mark, bool including_mark) noexcept
 {
-    const size_t lpos {src.find(mark)};
-    return str_found(lpos)? src.erase(lpos) : src;
+    const size_t pos {src.find(mark)};
+    if (nposs(pos)) return src;
+
+    size_t erase_pos {pos};
+    if (!including_mark) {
+        if constexpr (std::is_same_v<std::remove_cv_t<T2>, char>)
+            erase_pos += 1;
+        else
+            erase_pos += std::string_view(mark).size();
+    }
+
+    return src.erase(erase_pos);
 }
 //------------------------------------------------------------------------------------------------
 TSvVec multiwinsvv(std::string_view sv, const std::vector<TSvPair> lrmarks, size_t begin_pos) noexcept
