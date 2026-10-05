@@ -43,7 +43,7 @@
 #endif
 
 #include "strjoin.hpp"
-#include "utf8_sv.hpp"
+#include "utf8ext.hpp"
 
 // About suffix of func names:
 //    s  - return std::string type
