@@ -20,17 +20,17 @@
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <cerrno>
 #include "procext.hpp"
 
-#ifdef _WIN32
-  #include <cerrno>
-  #define PCLOSE _pclose
-  #define POPEN  _popen
+#if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
+    #define __POPEN_WINDOWS__
+    #define PCLOSE _pclose
+    #define POPEN  _popen
 #else
-  #include <cerrno>
-  #include <sys/wait.h> // POSIX 宏必需的系统头文件
-  #define PCLOSE pclose
-  #define POPEN  popen
+    #include <sys/wait.h> // POSIX 宏必需的系统头文件
+    #define PCLOSE pclose
+    #define POPEN  popen
 #endif
 
 // GNU libc++ extensions
@@ -100,7 +100,7 @@ int execute_cmd(const std::string& cmd, void* ctx, void(*cb)(void*, std::string_
     pipe.reset();
 
     int exitCode = -1;
-#ifdef _WIN32
+#ifdef __POPEN_WINDOWS__
     exitCode = rawStatus;
 #else
     if (rawStatus != -1 && WIFEXITED(rawStatus)) {
@@ -113,7 +113,7 @@ int execute_cmd(const std::string& cmd, void* ctx, void(*cb)(void*, std::string_
         if (rawStatus == -1) {
             errmsg = "pclose failed";
         } else {
-#ifndef _WIN32
+#ifndef __POPEN_WINDOWS__
             if (WIFSIGNALED(rawStatus)) {
                 errmsg = "killed by signal " + std::to_string(WTERMSIG(rawStatus));
             } else

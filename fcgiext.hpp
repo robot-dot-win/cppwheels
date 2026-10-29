@@ -1,5 +1,7 @@
 //  FastCGI library extentions.
 //
+//  Require: fcgi-devel
+//
 //  Copyright (C) 2026, Martin Young <martin_young@live.cn>
 //
 //  This program is free software: you can redistribute it and/or modify

@@ -1,6 +1,8 @@
 //  Fed up with the exceptions of nlohmann::json library.
 //  Wrapping it without exceptions - the No-Exception-Json.
 //
+//  Require: https://github.com/nlohmann/json
+//
 //  Copyright (C) 2025, Martin Young <martin_young@live.cn>
 //
 //  This program is free software: you can redistribute it and/or modify
