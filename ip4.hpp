@@ -25,13 +25,27 @@
 #include <compare>  // Since C++ 20
 #include <bit>      // Since C++ 20
 
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-constexpr size_t ip4_byte_index(size_t n) { return 3 - n; }
-#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-constexpr size_t ip4_byte_index(size_t n) { return n; }
-#else
-#error "Unsupported byte order"
-#endif
+// GCC/Clang dependent:
+//-----------------------
+//#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+//constexpr std::size_t ip4_byte_index(std::size_t n) { return 3 - n; }
+//#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+//constexpr std::size_t ip4_byte_index(std::size_t n) { return n; }
+//#else
+//#error "Unsupported byte order"
+//#endif
+
+// Portable endian-aware byte index for the host-order uint32_t representation
+// of an IPv4 address (a.b.c.d  <=>  (a<<24)|(b<<16)|(c<<8)|d).
+// Uses C++20 std::endian; works on little-endian and big-endian hosts.
+// Mixed-endian platforms are not supported.
+constexpr std::size_t ip4_byte_index(std::size_t n) noexcept {
+    if constexpr (std::endian::native == std::endian::little) {
+        return 3 - n;
+    } else {
+        return n;   // big-endian (or any non-little)
+    }
+}
 
 //-------------------------------------------------------------------------------------------
 class ip4 {
@@ -49,8 +63,8 @@ public:
     ip4(std::string_view sv);
     ip4(const char* pa): ip4(pa ? std::string_view{pa} : throw std::invalid_argument("Null IPv4 string")) {}
 
-          uint8_t& operator[](size_t n)       { return ba_[ip4_byte_index(n)]; }
-    const uint8_t& operator[](size_t n) const { return ba_[ip4_byte_index(n)]; }
+          uint8_t& operator[](std::size_t n)       { return ba_[ip4_byte_index(n)]; }
+    const uint8_t& operator[](std::size_t n) const { return ba_[ip4_byte_index(n)]; }
 
     [[nodiscard]] uint32_t get_aa() const noexcept { return aa; }
 

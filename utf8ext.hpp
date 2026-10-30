@@ -35,10 +35,10 @@
     #define UTF_CONV_WINDOWS 0
 #endif
 
-inline std::u16string utf8_to_utf16(std::string_view u8_str);
-inline std::u32string utf8_to_utf32(std::string_view u8_str);
-inline std::string    utf16_to_utf8(std::u16string_view u16_str);
-inline std::string    utf32_to_utf8(std::u32string_view u32_str);
+inline std::u16string utf8_to_16(std::string_view u8_str);
+inline std::u32string utf8_to_32(std::string_view u8_str);
+inline std::string    utf16_to_8(std::u16string_view u16_str);
+inline std::string    utf32_to_8(std::u32string_view u32_str);
 
 #if UTF_CONV_WINDOWS
 //------------------------------------------------------------------------
@@ -190,7 +190,7 @@ public:
 // 不自动剥离 BOM，U+FEFF 作为普通码点保留
 // 性能敏感场景：若为高频调用，可考虑查表法加速续字节判断，或使用 SIMD 优化；
 //               普通业务场景当前实现已足够。
-std::u32string utf8_to_utf32(std::string_view u8)
+std::u32string utf8_to_32(std::string_view u8)
 {
     constexpr char32_t REPLACEMENT = U'\uFFFD';
 
@@ -288,7 +288,7 @@ std::u32string utf8_to_utf32(std::string_view u8)
 //------------------------------------------------------------------------
 // UTF-32 转 UTF-8
 // 错误策略：非法码点（代理对、超范围）替换为 U+FFFD
-std::string utf32_to_utf8(std::u32string_view u32)
+std::string utf32_to_8(std::u32string_view u32)
 {
     constexpr char32_t MAX_CODEPOINT = 0x10FFFF;
 
@@ -331,7 +331,7 @@ std::string utf32_to_utf8(std::u32string_view u32)
 
 #if UTF_CONV_WINDOWS    //  Windows native implementation
 
-std::u16string utf8_to_utf16(std::string_view u8)
+std::u16string utf8_to_16(std::string_view u8)
 {
     if (u8.empty()) return {};
 
@@ -363,7 +363,7 @@ std::u16string utf8_to_utf16(std::string_view u8)
 //------------------------------------------------------------------------
 #else  // Non-Windows 自主实现
 
-std::u16string utf8_to_utf16(std::string_view u8)
+std::u16string utf8_to_16(std::string_view u8)
 {
     constexpr char16_t REPLACEMENT = u'\uFFFD';
     std::u16string result;
@@ -466,7 +466,7 @@ std::u16string utf8_to_utf16(std::string_view u8)
 
 #if UTF_CONV_WINDOWS
 
-std::string utf16_to_utf8(std::u16string_view u16)
+std::string utf16_to_8(std::u16string_view u16)
 {
     if (u16.empty()) return {};
 
@@ -502,7 +502,7 @@ std::string utf16_to_utf8(std::u16string_view u16)
 //------------------------------------------------------------------------
 #else  // Non-Windows 自主实现
 
-std::string utf16_to_utf8(std::u16string_view u16)
+std::string utf16_to_8(std::u16string_view u16)
 {
     constexpr const char* REPLACEMENT = "\xEF\xBF\xBD";
     constexpr std::size_t REPLACEMENT_LEN = 3;
