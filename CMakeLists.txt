@@ -24,77 +24,11 @@ project(cppwheels
 )
 
 #----------------------------------------------------------------------
-# Options
-#----------------------------------------------------------------------
-option(CPPWHEELS_ENABLE_FCGI
-    "Build fcgiext module (requires libfcgi / fcgi-devel)"
-    ON
-)
-
-#----------------------------------------------------------------------
 # Collect all .cpp sources dynamically
 #----------------------------------------------------------------------
 file(GLOB CPPWHEELS_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp"
 )
-
-#----------------------------------------------------------------------
-# Optional FastCGI support (fcgiext)
-#----------------------------------------------------------------------
-set(CPPWHEELS_HAS_FCGI FALSE)
-
-if(CPPWHEELS_ENABLE_FCGI)
-    # Prefer pkg-config when available (Linux, MinGW, etc.)
-    find_package(PkgConfig QUIET)
-    if(PkgConfig_FOUND)
-        pkg_check_modules(FCGI QUIET fcgi)
-    endif()
-
-    if(NOT FCGI_FOUND)
-        # Fallback: manual search for headers and library
-        find_path(FCGI_INCLUDE_DIR
-            NAMES fcgio.h fcgiapp.h
-            PATHS
-                /usr/include
-                /usr/local/include
-                /opt/local/include
-                "C:/Program Files/fcgi/include"
-                "C:/fcgi/include"
-            DOC "FastCGI include directory"
-        )
-        find_library(FCGI_LIBRARY
-            NAMES fcgi libfcgi
-            PATHS
-                /usr/lib
-                /usr/lib64
-                /usr/local/lib
-                /usr/local/lib64
-                /opt/local/lib
-                "C:/Program Files/fcgi/lib"
-                "C:/fcgi/lib"
-            DOC "FastCGI library"
-        )
-        if(FCGI_INCLUDE_DIR AND FCGI_LIBRARY)
-            set(FCGI_FOUND TRUE)
-            set(FCGI_INCLUDE_DIRS ${FCGI_INCLUDE_DIR})
-            set(FCGI_LIBRARIES ${FCGI_LIBRARY})
-        endif()
-    endif()
-
-    if(FCGI_FOUND)
-        set(CPPWHEELS_HAS_FCGI TRUE)
-        message(STATUS "cppwheels: FastCGI found — building fcgiext module")
-    else()
-        message(STATUS "cppwheels: FastCGI not found — fcgiext module excluded")
-    endif()
-else()
-    message(STATUS "cppwheels: FastCGI support disabled by user (CPPWHEELS_ENABLE_FCGI=OFF)")
-endif()
-
-# Exclude fcgiext.cpp when FastCGI is unavailable
-if(NOT CPPWHEELS_HAS_FCGI)
-    list(FILTER CPPWHEELS_SOURCES EXCLUDE REGEX "fcgiext\\.cpp$")
-endif()
 
 #----------------------------------------------------------------------
 # Library target
@@ -109,13 +43,6 @@ target_include_directories(cppwheels
 )
 
 target_compile_features(cppwheels PUBLIC cxx_std_20)
-
-# Propagate FastCGI dependency when the module is enabled
-if(CPPWHEELS_HAS_FCGI)
-    target_include_directories(cppwheels PUBLIC ${FCGI_INCLUDE_DIRS})
-    target_link_libraries(cppwheels PUBLIC ${FCGI_LIBRARIES})
-    target_compile_definitions(cppwheels PUBLIC CPPWHEELS_HAS_FCGI=1)
-endif()
 
 #----------------------------------------------------------------------
 # Platform-specific settings (keep minimal and portable)
@@ -139,13 +66,9 @@ install(TARGETS cppwheels
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-# Install public headers; exclude fcgiext.hpp when FastCGI is unavailable
 file(GLOB CPPWHEELS_HEADERS CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/*.hpp"
 )
-if(NOT CPPWHEELS_HAS_FCGI)
-    list(FILTER CPPWHEELS_HEADERS EXCLUDE REGEX "fcgiext\\.hpp$")
-endif()
 
 install(FILES ${CPPWHEELS_HEADERS}
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
