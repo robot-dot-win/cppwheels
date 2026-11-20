@@ -51,11 +51,9 @@ The repository is systematically divided into several functional domains based o
 
 * **Stream Processing**: Features `cmdoutputline`, a C++20 `std::invocable`\-constrained template that processes standard output streams line-by-line via functional callbacks, capturing exit codes and diagnostic signals synchronously.
 
-### 2.6 Data Formats & Identifiers (`cfgfile`, `nejson`, `ltuuid`)
+### 2.6 Data Formats & Identifiers (`cfgfile`, `ltuuid`)
 
 * **Configuration Parsing (`cfgfile`)**: Evaluates INI/CFG-style syntax, supporting section-based key-value mappings and line-comment ignoring rules.
-
-* **Deterministic JSON (`nejson`)**: A "No-Exception" architectural wrapper around `nlohmann::json`, guaranteeing exception-free JSON traversal (`value`, `get_to`) by enforcing fallback default values.
 
 * **UUID Generation (`ltuuid`)**: Implements an RFC 4122 compliant UUID v4 generator utilizing a thread-local `std::mt19937_64` engine. Provides integration with C++20 `std::format` via specialized formatters.
 

@@ -51,11 +51,9 @@ cppwheels
 
 * **流式处理**: 提供受 C++20 `std::invocable` 概念约束的 `cmdoutputline` 模板，通过函数式回调逐行处理标准输出流，并同步捕获进程退出码与异常信号。
 
-### 2.6 数据格式与标识符 (`cfgfile`, `nejson`, `ltuuid`)
+### 2.6 数据格式与标识符 (`cfgfile`, `ltuuid`)
 
 * **配置解析 (`cfgfile`)**: 执行对 INI/CFG 语法文本的词法解析，支持基于 Section 的键值对映射，并兼容行内注释剔除规则。
-
-* **确定性 JSON (`nejson`)**: 作为 `nlohmann::json` 的“无异常 (No-Exception)”架构包装器，通过强制提供 Fallback 默认值，确保 JSON 树遍历 (`value`, `get_to`) 过程在 `noexcept` 语义下运行。
 
 * **UUID 生成 (`ltuuid`)**: 采用线程局部 (thread-local) 的 `std::mt19937_64` 随机数引擎，实现完全符合 RFC 4122 标准的 UUID v4 生成器。通过模板特化提供对 C++20 `std::format` 的原生支持。
 
